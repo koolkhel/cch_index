@@ -1,0 +1,196 @@
+#ifndef RELDATA_INDEX_H
+#define RELDATA_INDEX_H
+
+#include <linux/kernel.h>
+#include <linux/spinlock.h>
+#include <linux/list.h>
+#include <linux/vmalloc.h>
+
+typedef void (*cch_index_start_save_t)(void);
+typedef void (*cch_index_finish_save_t)(void);
+typedef void (*cch_index_entry_save_t)(void);
+typedef void (*cch_index_value_free_t)(void);
+typedef void (*cch_index_load_data_t)(void);
+typedef void (*cch_index_entry_load_t)(void);
+
+struct cch_index_entry {
+	/* how many entries inside / how many children entries */
+	int ref_cnt;
+	/* NULL for root,
+	   bit "0" for lowest_entry
+	   bit "1" for locked flag
+	   bit "2" for saved flag
+	 */
+	struct cch_index_entry *parent;
+	struct list_head index_lru_list_entry;
+
+	union {
+		uint64_t backend_dev_offs;
+		struct cch_index_entry *entry;
+		void *value;
+	} v[];
+};
+
+struct cch_index {
+	spinlock_t cch_index_value_lock;
+	struct list_head index_lru_list;
+
+	struct cch_index_entry head;
+
+	cch_index_start_save_t start_save_fn;
+	cch_index_finish_save_t finish_save_fn;
+	cch_index_entry_save_t entry_save_fn;
+	cch_index_value_free_t value_free_fn;
+	cch_index_load_data_t load_data_fn;
+	cch_index_entry_load_t entry_load_fn;
+};
+
+extern int cch_index_check_lock(void *value);
+extern int cch_index_value_lock(void *value);
+extern int cch_index_value_unlock(void *value);
+extern void cch_index_on_new_entry_alloc(struct cch_index_entry *index,
+					 int inc_size, int new_size);
+extern void cch_index_on_entry_free(struct cch_index_entry *index,
+				    int dec_size, int new_size);
+extern void cch_index_alloc_new_cluster(void);
+extern void cch_index_free_cluster(void);
+
+#define ENTRY_LOWEST_ENTRY_BIT (1UL << 0)
+#define ENTRY_LOCKED_BIT (1UL << 1)
+#define ENTRY_SAVED_BIT (1UL << 2)
+
+/* entry contains actual values */
+static inline int cch_index_entry_is_lowest(struct cch_index_entry *entry)
+{
+	return (int) ((unsigned long) entry->parent) & ENTRY_LOWEST_ENTRY_BIT;
+}
+
+/* locked for load/unload */
+static inline int cch_index_entry_is_locked(struct cch_index_entry *entry)
+{
+	return (int) ((unsigned long)  entry->parent) & ENTRY_LOCKED_BIT;
+}
+
+static inline int cch_index_entry_is_saved(struct cch_index_entry *entry)
+{
+	return (int) ((unsigned long) entry->parent) & ENTRY_SAVED_BIT;
+}
+
+static inline void cch_index_entry_set_locked(struct cch_index_entry *entry)
+{
+	entry->parent = (struct cch_index_entry *)
+		(((unsigned long) entry->parent) | ENTRY_LOCKED_BIT);
+}
+
+static inline void cch_index_entry_set_saved(struct cch_index_entry *entry)
+{
+	entry->parent = (struct cch_index_entry *)
+		(((unsigned long) entry->parent) | ENTRY_SAVED_BIT);
+}
+
+static inline void cch_index_entry_clear_locked(struct cch_index_entry *entry)
+{
+	entry->parent = (struct cch_index_entry *)
+		(((unsigned long) entry->parent) & ~ENTRY_LOCKED_BIT);
+}
+
+static inline void cch_index_entry_clear_saved(struct cch_index_entry *entry)
+{
+	entry->parent = (struct cch_index_entry *)
+		(((unsigned long) entry->parent) & ~ENTRY_SAVED_BIT);
+}
+
+static inline struct cch_index_entry
+*cch_index_entry_get_parent(struct cch_index_entry *entry)
+{
+	/* ENTRY_SAVED_BIT is last in order */
+	return (struct cch_index_entry *)
+		(((unsigned long) entry->parent) & ~(ENTRY_SAVED_BIT - 1));
+}
+
+/* is entry unloaded to backing store */
+static inline int cch_index_entry_is_unloaded(struct cch_index_entry *entry)
+{
+	/* lowest bit is "unloaded flag" */
+	return (int) (((unsigned long) entry) & 0x1);
+}
+
+/* create and load */
+
+int cch_index_create(
+	int levels,
+	int bits,
+	int root_bits,
+	int low_bits,
+	cch_index_start_save_t cch_index_start_save_fn,
+	cch_index_finish_save_t cch_index_finish_save_fn,
+	cch_index_entry_save_t cch_index_save_fn,
+	cch_index_value_free_t cch_index_value_free_fn,
+	cch_index_load_data_t cch_entry_load_data_fn,
+	cch_index_entry_load_t cch_index_load_entry_fn,
+	struct cch_index **out);
+
+/* destroy, deallocate, don't allow used index*/
+void cch_index_destroy(struct cch_index *index);
+
+/* save to disk, return offset */
+uint64_t cch_index_save(struct cch_index *index);
+
+/* load from disk using "start" offset, return error code */
+int cch_index_load(struct cch_index *index, uint64_t start);
+
+/* search */
+
+/*
+ * Search on key. Found result to out_value,
+ * save index entry for sibling access, value_offset of record
+ * inside that index entry
+ */
+int cch_index_find(struct cch_index *index, uint64_t key,
+		   void **out_value, struct cch_index_entry **index_entry,
+		   int *value_offset);
+
+/*
+ * Access using offset. Result to out_value. Record offset to value_offset.
+ * next_index_entry can be NULL, value_offset can be NULL
+ */
+int cch_index_find_direct(struct cch_index_entry *entry, int offset,
+			  void **out_value,
+			  struct cch_index_entry **next_index_entry,
+			  int *value_offset);
+
+/* insertion */
+
+int cch_index_insert(struct cch_index *index,
+		     uint64_t key,  /* key of new record */
+		     void *value,   /* value of new record */
+		     bool replace,  /* should replace record under same key
+				     * If not -- -EEXIST    */
+		     /* created record */
+
+		     struct cch_index_entry **new_index_entry,
+		     int *new_value_offset);  /* created offset */
+
+/* insert to given entry with given offset.
+ * If offset too high, insert to sibling, update the offset and entry
+ */
+int cch_index_insert_direct(struct cch_index_entry *entry,
+			    bool replace,
+			    void *value,
+			    struct cch_index_entry **new_index_entry,
+			    int *new_value_offset);
+
+/* remove from index, return error, check_lock for entry */
+int cch_index_remove(struct cch_index *index, uint64_t key);
+
+int cch_index_remove_direct(struct cch_index_entry *entry, int offset);
+
+/* push excessive data to block device, reach max_mem_kb memory usage */
+int cch_index_shrink(struct cch_index_entry *index, int max_mem_kb);
+
+/* FIXME too little info in spec */
+
+/* restore from disk */
+int cch_index_restore(struct cch_index_entry *index);
+
+#endif  /* RELDATA_INDEX_H */
