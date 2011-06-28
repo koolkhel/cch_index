@@ -85,6 +85,19 @@ search_failure:
 		printk(KERN_INFO "index remove successful\n");
 	}
 
+	printk("index research start\n");
+	result = cch_index_find(index, INDEX_TEST_KEY, &found_value,
+				&new_index_entry, &new_value_offset);
+
+	if (result == 0) {
+		printk(KERN_INFO "index remove did not remove it\n");
+		printk(KERN_INFO "found %lx\n", (unsigned long) found_value);
+		goto remove_failure;
+	} else {
+		printk(KERN_INFO "index remove is actually successful\n");
+		result = 0; 			    /* this is expected */
+	}
+
 insert_failure:
 remove_failure:
 	printk(KERN_INFO "index destroy start\n");

@@ -1,3 +1,4 @@
+#include <linux/bug.h>
 #include <linux/slab.h>
 #include <linux/module.h>
 #include <linux/errno.h>
@@ -5,6 +6,10 @@
 #include "cch_index.h"
 
 #define DEBUG
+
+#define EXTRACT_BIASED_VALUE(key, levels_desc, sel_level) \
+	((key >> levels_desc[sel_level].offset) & \
+	 ((1UL << levels_desc[sel_level].bits) - 1))
 
 /*
  * distribute "bits" amongst "levels" keeping the results
@@ -78,7 +83,8 @@ int cch_index_create(
 	cch_index_entry_load_t cch_index_load_entry_fn,
 	struct cch_index **out)
 {
-	*out = kmalloc(sizeof(struct cch_index), GFP_KERNEL);
+	*out = vzalloc(sizeof(struct cch_index) +
+		       (1 << root_bits) * sizeof(void *));
 	if (out == NULL) {
 		printk(KERN_ERR "vmalloc failed during index create\n");
 		goto out_failure;
@@ -86,9 +92,8 @@ int cch_index_create(
 
 	/* root + levels + lowest level */
 	(*out)->levels = levels + 2;
-	(*out)->levels_desc = kmalloc((*out)->levels *
-				      sizeof(struct cch_level_desc_entry),
-				      GFP_KERNEL);
+	(*out)->levels_desc = vzalloc((*out)->levels *
+				      sizeof(struct cch_level_desc_entry));
 
 	if ((*out)->levels_desc == NULL) {
 		goto levels_desc_failure;
@@ -102,7 +107,7 @@ int cch_index_create(
 	return 0;
 	
 levels_desc_failure:
-	kfree(*out);
+	vfree(*out);
 out_failure:
 	return -ENOMEM;
 }
@@ -110,9 +115,13 @@ EXPORT_SYMBOL(cch_index_create);
 
 void cch_index_destroy(struct cch_index *index)
 {
+	struct cch_index_entry *entry;
+	int i = 0, j = 0;
 	BUG_ON(index == NULL);
-	kfree(index->levels_desc);
-	kfree(index);
+	entry = &index->head;
+	/* FIXME: pages cleanup */
+	vfree(index->levels_desc);
+	vfree(index);
 }
 EXPORT_SYMBOL(cch_index_destroy);
 
@@ -130,12 +139,82 @@ int cch_index_load(struct cch_index *index, uint64_t start)
 }
 EXPORT_SYMBOL(cch_index_load);
 
+static int cch_index_find_lowest_entry(struct cch_index *index,
+				       uint64_t key,
+				       bool create_new,
+				       struct cch_index_entry **found_entry)
+{
+	int record_offset = 0;
+	struct cch_index_entry *current_entry;
+	int i = 0;
+
+	BUG_ON(index == NULL);
+	current_entry = &index->head;
+	
+	for (i = 0; i < index->levels - 1; i++) {
+		BUG_ON(current_entry == NULL);
+		
+		record_offset = EXTRACT_BIASED_VALUE(key, index->levels_desc, i);
+#ifdef DEBUG
+		printk("offset is 0x%x\n", record_offset);
+		printk(KERN_DEBUG "value is %p\n",
+		       current_entry->v[record_offset].value);
+#endif
+
+		       
+		if (current_entry->v[record_offset].entry != NULL) {
+			current_entry = current_entry->v[record_offset].entry;
+		} else if (create_new) {
+			current_entry->v[record_offset].value =
+				vzalloc(sizeof(struct cch_index_entry) +
+					index->levels_desc[i + 1].size *
+					sizeof(void *));
+
+			printk(KERN_INFO "created new index entry at %p\n",
+			       current_entry->v[record_offset].entry);
+
+			if (current_entry->v[record_offset].entry == NULL) {
+				printk(KERN_ERR "index malloc failed\n");
+				return -ENOSPC;
+			}
+
+			/* FIXME: parent */
+			/* FIXME: everything */
+
+			current_entry = current_entry->v[record_offset].entry;
+		} else {
+			return -ENOENT;
+		}
+	}
+
+	*found_entry = current_entry;
+	return 0;
+}
+
 int cch_index_find(struct cch_index *index, uint64_t key,
 		   void **out_value, struct cch_index_entry **index_entry,
 		   int *value_offset)
 {
+	struct cch_index_entry *current_entry;
+	int result = 0;
+	int lowest_offset = 0;
+	
 	BUG_ON(index == NULL);
-	return -ENOENT;
+	
+	result = cch_index_find_lowest_entry(index, key,
+					     /* should not create new entries */
+					     false,
+					     &current_entry);
+	if (result) {
+		return -ENOENT;
+	}
+
+	lowest_offset = EXTRACT_BIASED_VALUE(key, index->levels_desc,
+					     index->levels);
+	*out_value = current_entry->v[lowest_offset].value;
+	*value_offset = lowest_offset;
+	
+	return *out_value == NULL ? -ENOENT : 0;
 }
 EXPORT_SYMBOL(cch_index_find);
 
@@ -148,9 +227,6 @@ int cch_index_find_direct(struct cch_index_entry *entry, int offset,
 	return -ENOENT;
 }
 EXPORT_SYMBOL(cch_index_find_direct);
-
-#define EXTRACT_VALUE(key, offset, bits) \
-	((key >> offset) & ((1UL << bits) - 1))
 
 int cch_index_insert(struct cch_index *index,
 		     uint64_t key,  /* key of new record */
@@ -165,17 +241,37 @@ int cch_index_insert(struct cch_index *index,
 		     int *new_value_offset)
 {
 	int i = 0;
+	int result = 0;
+	struct cch_index_entry *current_entry = NULL;
+	int record_offset = 0;
+	
 	BUG_ON(index == NULL);
 
+	#ifdef DEBUG
 	printk("key is 0x%.8llx\n", key);
 	for (i = 0; i < index->levels; i++) {
-		printk("part %d is 0x%.2x\n",
-		       i,
-		       EXTRACT_VALUE(key, index->levels_desc[i].offset,
-				     index->levels_desc[i].bits));
+		printk("part %d is 0x%.2llx\n", i,
+		       EXTRACT_BIASED_VALUE(key,
+					    index->levels_desc,
+					    i));
+	}
+	#endif
+
+	result = cch_index_find_lowest_entry(index, key,
+					     /* should create new index 
+					      entries? */ true, &current_entry);
+
+	if (result) {
+		return result;
 	}
 	
-	return -ENOSPC;
+	/* now at lowest level */
+	record_offset = EXTRACT_BIASED_VALUE(key,
+					     index->levels_desc,
+					     index->levels - 1);
+	current_entry->v[record_offset].value = value;
+	
+	return 0;
 }
 EXPORT_SYMBOL(cch_index_insert);
 
@@ -192,8 +288,25 @@ EXPORT_SYMBOL(cch_index_insert_direct);
 
 int cch_index_remove(struct cch_index *index, uint64_t key)
 {
+	struct cch_index_entry *current_entry;
+	int result = 0;
+	int lowest_offset = 0;
+
 	BUG_ON(index == NULL);
-	return -ENOENT;
+
+	result = cch_index_find_lowest_entry(index, key,
+					     /* should not create new entries */
+					     false,
+					     &current_entry);
+	if (result) {
+		return -ENOENT;
+	}
+
+	lowest_offset = EXTRACT_BIASED_VALUE(key, index->levels_desc,
+					     index->levels);
+	current_entry->v[lowest_offset].value = NULL;
+	
+	return 0;
 }
 EXPORT_SYMBOL(cch_index_remove);
 
