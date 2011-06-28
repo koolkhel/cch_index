@@ -13,6 +13,13 @@ typedef void (*cch_index_value_free_t)(void);
 typedef void (*cch_index_load_data_t)(void);
 typedef void (*cch_index_entry_load_t)(void);
 
+void cch_index_start_save_fn(void);
+void cch_index_finish_save_fn(void);
+void cch_index_entry_save_fn(void);
+void cch_index_value_free_fn(void);
+void cch_index_load_data_fn(void);
+void cch_index_load_entry_fn(void);
+
 struct cch_index_entry {
 	/* how many entries inside / how many children entries */
 	int ref_cnt;
@@ -31,11 +38,31 @@ struct cch_index_entry {
 	} v[];
 };
 
+/*
+ * Description of a level in multi-level index
+ */
+struct cch_level_desc_entry {
+	/* this many records in this level index entry */
+	int size;
+
+	/* addressed by this many bits */
+	int bits;
+
+	/* biased to previous record with this offset */
+	int offset;
+};
+
 struct cch_index {
 	spinlock_t cch_index_value_lock;
 	struct list_head index_lru_list;
 
 	struct cch_index_entry head;
+
+        /* total number of levels -- levels + 1 for root + 1 for lowest */
+	int levels;
+	
+	/* array, describing each level of index */
+	struct cch_level_desc_entry *levels_desc;
 
 	cch_index_start_save_t start_save_fn;
 	cch_index_finish_save_t finish_save_fn;
@@ -58,6 +85,11 @@ extern void cch_index_free_cluster(void);
 #define ENTRY_LOWEST_ENTRY_BIT (1UL << 0)
 #define ENTRY_LOCKED_BIT (1UL << 1)
 #define ENTRY_SAVED_BIT (1UL << 2)
+
+static inline int cch_index_entry_is_root(struct cch_index_entry *entry)
+{
+	return entry->parent == NULL;
+}
 
 /* entry contains actual values */
 static inline int cch_index_entry_is_lowest(struct cch_index_entry *entry)

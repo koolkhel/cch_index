@@ -19,4 +19,10 @@ load: mlindex.ko
 	sudo insmod mlindex.ko
 
 unload:
-	sudo rmmod mlindex
+	sudo rmmod -f mlindex
+
+last-deploy:
+	touch last-deploy
+
+deploy: mlindex.ko last-deploy
+	lftp -f ftp-deploy

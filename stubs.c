@@ -67,6 +67,6 @@ void cch_index_load_data_fn(void)
 {
 }
 
-void cch_index_entry_load_fn(void)
+void cch_index_load_entry_fn(void)
 {
 }
