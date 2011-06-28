@@ -27,10 +27,10 @@ static void generate_level_descriptions(struct cch_index *index,
 	index->levels_desc[index->levels - 1].bits = low_bits;
 	index->levels_desc[index->levels - 1].size = 1UL << low_bits;
 	index->levels_desc[index->levels - 1].offset = low_bits;
-	next_level_offset = low_bits;
+	next_level_offset = 0;
 	
 	/* walking backwards, lower levels will be thicker */
-	for (i = index->levels - 2; i > 0; i--) {
+	for (i = index->levels - 1; i > 0; i--) {
 		index->levels_desc[i].bits = each_base_size;
 		if (to_distribute) {
 			index->levels_desc[i].bits++;
@@ -111,7 +111,7 @@ EXPORT_SYMBOL(cch_index_create);
 void cch_index_destroy(struct cch_index *index)
 {
 	BUG_ON(index == NULL);
-	
+	kfree(index->levels_desc);
 	kfree(index);
 }
 EXPORT_SYMBOL(cch_index_destroy);
@@ -149,6 +149,9 @@ int cch_index_find_direct(struct cch_index_entry *entry, int offset,
 }
 EXPORT_SYMBOL(cch_index_find_direct);
 
+#define EXTRACT_VALUE(key, offset, bits) \
+	((key >> offset) & ((1UL << bits) - 1))
+
 int cch_index_insert(struct cch_index *index,
 		     uint64_t key,  /* key of new record */
 		     void *value,   /* value of new record */
@@ -161,7 +164,17 @@ int cch_index_insert(struct cch_index *index,
 		     /* created offset */
 		     int *new_value_offset)
 {
+	int i = 0;
 	BUG_ON(index == NULL);
+
+	printk("key is 0x%.8llx\n", key);
+	for (i = 0; i < index->levels; i++) {
+		printk("part %d is 0x%.2x\n",
+		       i,
+		       EXTRACT_VALUE(key, index->levels_desc[i].offset,
+				     index->levels_desc[i].bits));
+	}
+	
 	return -ENOSPC;
 }
 EXPORT_SYMBOL(cch_index_insert);

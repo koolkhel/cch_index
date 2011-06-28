@@ -20,10 +20,10 @@ static int smoke_test(void)
 	void *found_value = NULL;
 
 	printk(KERN_INFO "index creation start\n");
-	result = cch_index_create(/* levels */    4,
-				  /* bits */      40,
-				  /* root_bits */ 12,
-				  /* low_bits */  12, /* 64 total */
+	result = cch_index_create(/* levels */    6,
+				  /* bits */      48,
+				  /* root_bits */ 8,
+				  /* low_bits */  8, /* 64 total */
 				  cch_index_start_save_fn,
 				  cch_index_finish_save_fn,
 				  cch_index_entry_save_fn,
