@@ -58,10 +58,10 @@ struct cch_index {
 
 	struct cch_index_entry head;
 
-        /* total number of levels -- levels + 1 for root + 1 for lowest */
+/* total number of levels -- levels + 1 for root + 1 for lowest */
 	int levels;
-	
-	/* array, describing each level of index */
+
+/* array, describing each level of index */
 	struct cch_level_desc_entry *levels_desc;
 
 	cch_index_start_save_t start_save_fn;

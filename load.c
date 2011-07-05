@@ -4,7 +4,7 @@
 /* shouldn't it go to linux source tree? */
 #include "cch_index.h"
 
-/* 
+/*
  * Test index creation, insert, remove and destroy with
  * single value and no direct access to index entries.
  */
@@ -12,7 +12,7 @@ static int smoke_test(void)
 {
 	#define INDEX_TEST_KEY 0x0102030401020304ULL
 	#define INDEX_TEST_VALUE 0x04030201
-	
+
 	struct cch_index *index = NULL;
 	int result = 0;
 	struct cch_index_entry *new_index_entry;
@@ -41,7 +41,7 @@ static int smoke_test(void)
 	printk(KERN_INFO "index insert start\n");
 	result = cch_index_insert(index,
 				  /* key */ INDEX_TEST_KEY,
-				  /* value */ (void*) INDEX_TEST_VALUE,
+				  /* value */ (void *) INDEX_TEST_VALUE,
 				  /* replace */ false,
 				  &new_index_entry,
 				  &new_value_offset);
@@ -55,7 +55,7 @@ static int smoke_test(void)
 		       new_value_offset);
 	}
 
-	printk("index search start\n");
+	printk(KERN_INFO "index search start\n");
 	result = cch_index_find(index, INDEX_TEST_KEY, &found_value,
 				&new_index_entry, &new_value_offset);
 
@@ -67,11 +67,10 @@ static int smoke_test(void)
 		       "with value %lx\n", (unsigned long) new_index_entry,
 		       new_value_offset,
 		       (unsigned long) found_value);
-		if (found_value == (void *) INDEX_TEST_VALUE) {
+		if (found_value == (void *) INDEX_TEST_VALUE)
 			printk(KERN_INFO "found exact match\n");
-		} else {
+		else
 			printk(KERN_INFO "found wrong match\n");
-		}
 	}
 
 search_failure:
@@ -85,7 +84,7 @@ search_failure:
 		printk(KERN_INFO "index remove successful\n");
 	}
 
-	printk("index research start\n");
+	printk(KERN_INFO "index research start\n");
 	result = cch_index_find(index, INDEX_TEST_KEY, &found_value,
 				&new_index_entry, &new_value_offset);
 
@@ -95,7 +94,7 @@ search_failure:
 		goto remove_failure;
 	} else {
 		printk(KERN_INFO "index remove is actually successful\n");
-		result = 0; 			    /* this is expected */
+		result = 0; /* this is expected */
 	}
 
 insert_failure:
@@ -112,11 +111,10 @@ static int __init reldata_index_init(void)
 	int result = 0;
 	printk(KERN_INFO "hello, world!\n");
 	result = smoke_test();
-	if (result != 0) {
+	if (result != 0)
 		printk(KERN_INFO "smoke test failure\n");
-	} else {
+	else
 		printk(KERN_INFO "we can send that! congragulations!\n");
-	}
 	return 0;
 }
 
