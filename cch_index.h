@@ -100,7 +100,7 @@ static inline int cch_index_entry_is_lowest(struct cch_index_entry *entry)
 /* locked for load/unload */
 static inline int cch_index_entry_is_locked(struct cch_index_entry *entry)
 {
-	return (int) ((unsigned long)  entry->parent) & ENTRY_LOCKED_BIT;
+	return (int) ((unsigned long) entry->parent) & ENTRY_LOCKED_BIT;
 }
 
 static inline int cch_index_entry_is_saved(struct cch_index_entry *entry)

@@ -4,6 +4,9 @@
 /* shouldn't it go to linux source tree? */
 #include "cch_index.h"
 
+#define LOG_PREFIX "load"
+#include "cch_index_debug.h"
+
 /*
  * Test index creation, insert, remove and destroy with
  * single value and no direct access to index entries.

@@ -5,6 +5,9 @@
 
 #include "cch_index.h"
 
+#define LOG_PREFIX "cch_index"
+#include "cch_index_debug.h"
+
 #define DEBUG
 
 #define EXTRACT_BIASED_VALUE(key, levels_desc, sel_level) \
@@ -25,6 +28,7 @@ static void generate_level_descriptions(struct cch_index *index,
 	int i = 0;
 	int next_level_offset = 0;
 
+	TRACE_ENTRY();
 	#ifdef DEBUG
 	printk(KERN_INFO "each %d, to distribute -- %d\n",
 	       each_base_size, to_distribute);
@@ -52,11 +56,14 @@ static void generate_level_descriptions(struct cch_index *index,
 	index->levels_desc[0].bits = root_bits;
 	index->levels_desc[0].size = 1UL << root_bits;
 	index->levels_desc[0].offset = next_level_offset;
+
+	TRACE_EXIT();
 }
 
 void show_index_description(struct cch_index *index)
 {
 	int i = 0;
+	TRACE_ENTRY();
 	printk(KERN_INFO "number of levels: %d\n", index->levels);
 	for (i = 0; i < index->levels; i++) {
 		if (i == 0)
@@ -69,6 +76,7 @@ void show_index_description(struct cch_index *index)
 		       index->levels_desc[i].size,
 		       index->levels_desc[i].offset);
 	}
+	TRACE_EXIT();
 }
 
 int cch_index_create(
@@ -84,6 +92,7 @@ int cch_index_create(
 	cch_index_entry_load_t cch_index_load_entry_fn,
 	struct cch_index **out)
 {
+	TRACE_ENTRY();
 	*out = vzalloc(sizeof(struct cch_index) +
 		       (1 << root_bits) * sizeof(void *));
 	if (out == NULL) {
@@ -103,6 +112,7 @@ int cch_index_create(
 	#ifdef DEBUG
 	show_index_description(*out);
 	#endif
+	TRACE_EXIT();
 
 	return 0;
 
