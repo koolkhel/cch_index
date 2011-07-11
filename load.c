@@ -114,20 +114,29 @@ failure:
 	return result;
 }
 
+static struct {
+	uint64_t key;
+	void *value;
+} test_values[] = {
+	{0x0102030401020304ULL, (void *) 0x04030201},
+	{0x0102030401020305ULL, (void *) 0x66666666},
+	{0x123456, (void *) 0x234567},
+	{0x765432, (void *) 0x542123},
+	{0x1, (void *) 0x1}
+};
+
 /*
  * Test index creation, insert, remove and destroy with
  * single value and no direct access to index entries.
  */
 static int smoke_test(void)
 {
-	#define INDEX_TEST_KEY 0x0102030401020304ULL
-	#define INDEX_TEST_VALUE 0x04030201
-
 	struct cch_index *index = NULL;
 	int result = 0;
 	struct cch_index_entry *new_index_entry;
 	int new_value_offset = 0;
 	void *found_value = NULL;
+	int i = 0;
 
 	PRINT_INFO("******** create index *************\n");
 	result = cch_index_create(/* levels */    6,
@@ -146,34 +155,40 @@ static int smoke_test(void)
 		goto creation_failure;
 	}
 
-	PRINT_INFO("******** insert one index entry ********\n");
-	result = insert_to_index(index, INDEX_TEST_KEY,
-				 (void *) INDEX_TEST_VALUE,
-				 &new_index_entry, &new_value_offset);
+	PRINT_INFO("******** insert index entries ********\n");
+	for (i = 0; i < ARRAY_SIZE(test_values); i++) {
+		result = insert_to_index(index, test_values[i].key,
+					 test_values[i].value,
+					 &new_index_entry, &new_value_offset);
 
-	if (result)
-		goto insert_failure;
+		if (result)
+			goto insert_failure;
+	}
 
 	PRINT_INFO("********** find the index entry by key *********\n");
-	result = search_index(index, INDEX_TEST_KEY, &found_value,
-			      &new_index_entry, &new_value_offset,
-			      (void *) INDEX_TEST_VALUE);
+	for (i = 0; i < ARRAY_SIZE(test_values); i++) {
+		result = search_index(index, test_values[i].key, &found_value,
+				      &new_index_entry, &new_value_offset,
+				      test_values[i].value);
 
-	if (result)
-		goto search_failure;
+		if (result)
+			goto search_failure;
+	}
 
 search_failure:
 	PRINT_INFO("****** remove entry assuming it exists ***********\n");
-	result = index_remove_existing(index, INDEX_TEST_KEY);
+	for (i = 0; i < ARRAY_SIZE(test_values); i++) {
+		result = index_remove_existing(index, test_values[i].key);
 
-	if (result)
-		goto remove_failure;
+		if (result)
+			goto remove_failure;
+	}
 
 insert_failure:
 remove_failure:
-	PRINT_INFO("********** attempt to destroy the index **********\n");
+	PRINT_INFO("********** attempt to destroy the index **********");
 	cch_index_destroy(index);
-	printk(KERN_INFO "index destroy successful\n");
+	PRINT_INFO("index destroy successful");
 creation_failure:
 	return result;
 }
@@ -181,13 +196,11 @@ creation_failure:
 static int __init reldata_index_init(void)
 {
 	int result = 0;
-	printk(KERN_INFO "hello, world!\n");
+	PRINT_INFO("hello, world!");
 	result = smoke_test();
 	if (result != 0)
-		printk(KERN_INFO "smoke test failure\n");
-	else
-		printk(KERN_INFO "we can send that! congragulations!\n");
-	return 0;
+		PRINT_ERROR("smoke test failure");
+	return result;
 }
 
 static void reldata_index_shutdown(void)

@@ -91,7 +91,7 @@ int cch_index_create(
 	cch_index_finish_save_t cch_index_finish_save_fn,
 	cch_index_entry_save_t cch_index_save_fn,
 	cch_index_value_free_t cch_index_value_free_fn,
-	cch_index_load_data_t cch_entry_load_data_fn,
+	cch_index_load_data_t cch_index_load_data_fn,
 	cch_index_entry_load_t cch_index_load_entry_fn,
 	struct cch_index **out)
 {
@@ -103,8 +103,15 @@ int cch_index_create(
 		       (1 << root_bits) * sizeof(void *),
 		       GFP_KERNEL);
 
+	new_index->start_save_fn  = cch_index_start_save_fn;
+	new_index->finish_save_fn = cch_index_finish_save_fn;
+	new_index->entry_save_fn  = cch_index_save_fn;
+	new_index->value_free_fn  = cch_index_value_free_fn;
+	new_index->load_data_fn   = cch_index_load_data_fn;
+	new_index->entry_load_fn  = cch_index_load_entry_fn;
+
 	if (new_index == NULL) {
-		printk(KERN_ERR "vmalloc failed during index create\n");
+		PRINT_ERROR("vmalloc failed during index create");
 		result = -ENOMEM;
 		goto mem_failure;
 	}
@@ -146,7 +153,15 @@ void cch_index_destroy(struct cch_index *index)
 	TRACE_ENTRY();
 	sBUG_ON(index == NULL);
 	entry = &index->head;
-	/* FIXME: pages cleanup, need to do a tree walk */
+	/* maybe, it's easier: 
+	 * 1. lock the index
+	 * 2. free lowest level slab cache
+	 * 3. free mid levels slab cache
+	 * 4. cleanup the root
+	 * 
+	 * that might be good enough
+	 */
+	
 	kfree(index->levels_desc);
 	kfree(index);
 	TRACE_EXIT();

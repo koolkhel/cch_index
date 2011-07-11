@@ -56,8 +56,6 @@ struct cch_index {
 	spinlock_t cch_index_value_lock;
 	struct list_head index_lru_list;
 
-	struct cch_index_entry head;
-
 /* total number of levels -- levels + 1 for root + 1 for lowest */
 	int levels;
 
@@ -70,6 +68,9 @@ struct cch_index {
 	cch_index_value_free_t value_free_fn;
 	cch_index_load_data_t load_data_fn;
 	cch_index_entry_load_t entry_load_fn;
+
+	/* Must be last element as it is direction of growing */
+	struct cch_index_entry head;
 };
 
 extern int cch_index_check_lock(void *value);
