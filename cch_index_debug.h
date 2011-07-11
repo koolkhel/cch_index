@@ -1,7 +1,8 @@
 #ifndef CCH_INDEX_DEBUG_H
 #define CCH_INDEX_DEBUG_H
 
-#define CCH_INDEX_DEBUG
+#include <linux/hardirq.h>
+#include <linux/irqflags.h>
 
 #define TRACE_NULL           0x00000000
 #define TRACE_DEBUG          0x00000001
@@ -71,44 +72,44 @@ do {									\
 
 #define PRINT_INFO(format, args...)				\
 do {								\
-	PRINT(KERN_INFO, "%s: " format, LOG_PREFIX, args);	\
+	PRINT(KERN_INFO, "%s: " format, LOG_PREFIX, ## args);	\
 } while (0)
 
 #define PRINT_WARNING(format, args...)          \
 do {                                            \
 	PRINT(KERN_INFO, "%s: ***WARNING***: "	\
-	      format, LOG_PREFIX, args);	\
+	      format, LOG_PREFIX, ## args);	\
 } while (0)
 
 #define PRINT_ERROR(format, args...)            \
 do {                                            \
 	PRINT(KERN_INFO, "%s: ***ERROR***: "	\
-	      format, LOG_PREFIX, args);	\
+	      format, LOG_PREFIX, ## args);	\
 } while (0)
 
 #define PRINT_CRIT_ERROR(format, args...)       \
 do {                                            \
 	PRINT(KERN_INFO, "%s: ***CRITICAL ERROR***: "	\
-		format, LOG_PREFIX, args);		\
+		format, LOG_PREFIX, ## args);		\
 } while (0)
 
-#else
+#else /* #ifdef LOG_PREFIX */
 
 #define PRINT_INFO(format, args...)		\
 do {                                            \
-	PRINT(KERN_INFO, format, args);		\
+	PRINT(KERN_INFO, format, ## args);		\
 } while (0)
 
 #define PRINT_WARNING(format, args...)          \
 do {                                            \
 	PRINT(KERN_INFO, "***WARNING***: "	\
-		format, args);			\
+		format, ## args);		\
 } while (0)
 
 #define PRINT_ERROR(format, args...)		\
 do {                                            \
 	PRINT(KERN_ERR, "***ERROR***: "		\
-		format, args);			\
+		format, ## args);		\
 } while (0)
 
 #define PRINT_CRIT_ERROR(format, args...)		\
@@ -124,14 +125,15 @@ do {							\
 	} while (0)
 
 #define TRACE_EXIT() do {				\
-		PRINT(KERN_INFO, "ENTRY %s", __func__);	\
+		PRINT(KERN_INFO, "LEAVE %s", __func__);	\
 	} while (0)
 
-#else
+#else /* #ifdef CCH_INDEX_DEBUG */
 
-#define TRACE(trace, format, args...) do {} while(0);
+#define TRACE(trace, format, args...) do {} while (0)
 
-#define TRACE_ENTRY() do {} while (0);
+#define TRACE_ENTRY() do {} while (0)
+#define TRACE_EXIT() do {} while (0)
 
 #define PRINT_BUFFER(message, buff, len)                            \
 do {                                                                \
@@ -139,6 +141,11 @@ do {                                                                \
 	debug_print_buffer(buff, len);				    \
 } while (0)
 
-#endif
+#define PRINT_INFO(format, args...) do {} while (0)
+#define PRINT_WARNING(format, args...) do {} while (0)
+#define PRINT_ERROR(format, args...) do {} while (0)
+#define PRINT_CRIT_ERROR(format, args...) do {} while (0)
+
+#endif /* #ifdef CCH_INDEX_DEBUG */
 
 #endif /* CCH_INDEX_DEBUG_H */

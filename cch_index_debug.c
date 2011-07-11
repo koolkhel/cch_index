@@ -12,10 +12,6 @@ static DEFINE_SPINLOCK(trace_buf_lock);
 
 static inline int get_current_tid(void)
 {
-	/* Code should be the same as in sys_gettid() */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
-	return current->pid;
-#else
 	if (in_interrupt()) {
 		/*
 		 * Unfortunately, task_pid_vnr() isn't IRQ-safe, so otherwise
@@ -24,7 +20,6 @@ static inline int get_current_tid(void)
 		return 0;
 	}
 	return task_pid_vnr(current);
-#endif
 }
 
 /**

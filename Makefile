@@ -1,30 +1,31 @@
-obj-m += mlindex.o
-mlindex-objs := load.o cch_index.o stubs.o cch_index_debug.o
+obj-m += cchindex.o
+cchindex-objs := load.o cch_index.o stubs.o cch_index_debug.o
 
-default: mlindex.ko
+MODULE_NAME := cchindex.ko 
+
+default: $(MODULE_NAME)
 
 check:
-	linux/scripts/checkpatch.pl --file cch_index.c
-	linux/scripts/checkpatch.pl --file cch_index.h
-	linux/scripts/checkpatch.pl --file cch_index_debug.h
-	linux/scripts/checkpatch.pl --file cch_index_debug.c
-	linux/scripts/checkpatch.pl --file load.c
-	linux/scripts/checkpatch.pl --file stubs.c
-
-mlindex.ko: load.c cch_index.c cch_index.h stubs.c cch_index_debug.c cch_index_debug.h
+	linux/scripts/checkpatch.pl --emacs --file cch_index.c
+	linux/scripts/checkpatch.pl --emacs --file cch_index.h
+	linux/scripts/checkpatch.pl --emacs --file cch_index_debug.h
+	linux/scripts/checkpatch.pl --emacs --file cch_index_debug.c
+	linux/scripts/checkpatch.pl --emacs --file load.c
+	linux/scripts/checkpatch.pl --emacs --file stubs.c
+$(MODULE_NAME): load.c cch_index.c cch_index.h stubs.c cch_index_debug.c cch_index_debug.h
 	make -C linux M=`pwd` modules
 
 clean:
 	make -C linux M=`pwd` clean
 
-load: mlindex.ko
-	sudo insmod mlindex.ko
+load: $(MODULE_NAME)
+	sudo insmod $(MODULE_NAME)
 
 unload:
-	sudo rmmod -f mlindex
+	sudo rmmod -vwf $(MODULE_NAME)
 
 last-deploy:
 	touch last-deploy
 
-deploy: mlindex.ko last-deploy
+deploy: $(MODULE_NAME) last-deploy
 	lftp -f ftp-deploy
