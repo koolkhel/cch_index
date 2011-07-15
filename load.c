@@ -6,6 +6,11 @@
 #include "cch_index_debug.h"
 #include "cch_index.h"
 
+/*
+ * Wrappers to index function to avoid repeating of error checking
+ * in tests.
+ *
+ */
 static int insert_to_index(struct cch_index *index,
 			   uint64_t key, void *value,
 			   struct cch_index_entry **new_index_entry,
@@ -122,7 +127,8 @@ static struct {
 	{0x0102030401020305ULL, (void *) 0x66666666},
 	{0x123456, (void *) 0x234567},
 	{0x765432, (void *) 0x542123},
-	{0x1, (void *) 0x1}
+	{0x1, (void *) 0x1},
+	{0xdeadbeefdeadbeefULL, (void *) 0xdeadbeef}
 };
 
 /*
@@ -142,7 +148,7 @@ static int smoke_test(void)
 	result = cch_index_create(/* levels */    6,
 				  /* bits */      48,
 				  /* root_bits */ 8,
-				  /* low_bits */  8, /* 64 total */
+				  /* low_bits */  8, /* 46 total */
 				  cch_index_start_save_fn,
 				  cch_index_finish_save_fn,
 				  cch_index_entry_save_fn,
@@ -200,6 +206,8 @@ static int __init reldata_index_init(void)
 	result = smoke_test();
 	if (result != 0)
 		PRINT_ERROR("smoke test failure");
+	else
+		PRINT_ERROR("everything seem to be ok");
 	return result;
 }
 

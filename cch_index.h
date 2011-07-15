@@ -6,6 +6,10 @@
 #include <linux/list.h>
 #include <linux/vmalloc.h>
 
+/* alignment for kmem_cache */
+#define CCH_INDEX_LOW_LEVEL_ALIGN 8
+#define CCH_INDEX_MID_LEVEL_ALIGN 8
+
 typedef void (*cch_index_start_save_t)(void);
 typedef void (*cch_index_finish_save_t)(void);
 typedef void (*cch_index_entry_save_t)(void);
@@ -59,8 +63,15 @@ struct cch_index {
 /* total number of levels -- levels + 1 for root + 1 for lowest */
 	int levels;
 
+	int root_level;
+	int lowest_level;
+	int mid_level;
+
 /* array, describing each level of index */
 	struct cch_level_desc_entry *levels_desc;
+
+	struct kmem_cache *mid_level_kmem;
+	struct kmem_cache *low_level_kmem;
 
 	cch_index_start_save_t start_save_fn;
 	cch_index_finish_save_t finish_save_fn;

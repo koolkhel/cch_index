@@ -12,6 +12,11 @@ check:
 	linux/scripts/checkpatch.pl --emacs --file cch_index_debug.c
 	linux/scripts/checkpatch.pl --emacs --file load.c
 	linux/scripts/checkpatch.pl --emacs --file stubs.c
+EXTRA_CFLAGS:=-g
+
+dump: $(MODULE_NAME)
+	objdump -DglS $(MODULE_NAME) > asm-source.txt
+
 $(MODULE_NAME): load.c cch_index.c cch_index.h stubs.c cch_index_debug.c cch_index_debug.h
 	make -C linux M=`pwd` modules
 
