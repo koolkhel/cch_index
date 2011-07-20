@@ -180,6 +180,53 @@ success:
 }
 EXPORT_SYMBOL(cch_index_create);
 
+/* 
+ * insert into found entry with offset inside this entry,
+ * should not be called by external API thus "__" in the name
+ */
+static int __cch_index_entry_insert_direct(
+	struct cch_index_entry *entry,
+	int offset,
+	bool replace,
+	void *value)
+{
+	int result = 0;
+	TRACE_ENTRY();
+	if (entry->v[offset].value != NULL) {
+		if (replace) {
+			entry->v[offset].value = value;
+			result = 0;
+		} else {
+			result = -EEXIST;
+			goto failure;
+		}
+	}
+	entry->ref_cnt++;
+failure:
+	TRACE_EXIT();
+	return result;
+}
+
+/*
+ * get number of elements this entry could hold. Practically,
+ * size of v[] array.
+ */
+static inline int __cch_index_entry_size(struct cch_index *index,
+	struct cch_index_entry *entry)
+{
+	int size;
+	TRACE_ENTRY();
+	if (cch_index_entry_is_lowest(entry)) {
+		size = index->levels_desc[index->lowest_level].size;
+	} else if (cch_index_entry_is_root(entry)) {
+		size = index->levels_desc[index->root_level].size;
+	} else {
+		size = index->levels_desc[index->mid_level].size;
+	}
+	TRACE_EXIT();
+	return size;
+}
+
 static void cch_index_destroy_lowest_level_entry(struct cch_index *index,
 	struct cch_index_entry *entry)
 {
@@ -235,6 +282,102 @@ static void cch_index_destroy_mid_level_entry(struct cch_index *index,
 	TRACE_EXIT();
 }
 
+static int cch_index_create_lowest_entry(
+	struct cch_index *index,
+	struct cch_index_entry *parent,
+	struct cch_index_entry **new_entry,
+	int offset)
+{
+	int result = 0;
+	int i = 0;
+	TRACE_ENTRY();
+	BUG_ON(index == NULL);
+	BUG_ON(parent == NULL);
+	*new_entry = kmem_cache_zalloc(index->low_level_kmem, GFP_KERNEL);
+	if (!*new_entry) {
+		PRINT_ERROR("low level alloc failure");
+		result = -ENOSPC;
+		goto mem_failure;
+	}
+	parent->v[offset].entry = *new_entry;
+	(*new_entry)->parent = (struct cch_index_entry *)
+		(((unsigned long) parent) | ENTRY_LOWEST_ENTRY_BIT);
+	parent->ref_cnt++;
+#ifdef CCH_INDEX_DEBUG
+	/* check real bounds of new object */
+	for (i = 0; i < __cch_index_entry_size(index, *new_entry); i++)
+		sBUG_ON((*new_entry)->v[i].entry != 0);
+#endif
+
+	TRACE_EXIT();
+mem_failure:
+	return result;
+}
+
+static int cch_index_create_mid_entry(
+	struct cch_index *index,
+	struct cch_index_entry *parent,
+	struct cch_index_entry **new_entry,
+	int offset)
+{
+	int result = 0;
+	int i = 0;
+	TRACE_ENTRY();
+	BUG_ON(index == NULL);
+	BUG_ON(parent == NULL);
+	*new_entry = kmem_cache_zalloc(index->mid_level_kmem, GFP_KERNEL);
+	if (!*new_entry) {
+		PRINT_ERROR("mid level alloc failure");
+		result = -ENOSPC;
+		goto mem_failure;
+	}
+	parent->v[offset].entry = *new_entry;
+	(*new_entry)->parent = parent;
+	parent->ref_cnt++;
+
+#ifdef CCH_INDEX_DEBUG
+	for (i = 0; i < __cch_index_entry_size(index, *new_entry); i++)
+		sBUG_ON((*new_entry)->v[i].entry != 0);
+#endif
+	TRACE_EXIT();
+mem_failure:
+	return result;
+}
+
+/* 
+ * decides whether to create mid or lowest level entry upon given
+ * level number
+ */
+static inline int __cch_index_entry_create(struct cch_index *index,
+	struct cch_index_entry *parent,
+	struct cch_index_entry **new_entry,
+	int level,
+	int offset)
+{
+	int result;
+	TRACE_ENTRY();
+	sBUG_ON(index == NULL);
+	sBUG_ON(parent == NULL);
+	sBUG_ON(new_entry == NULL);
+	if (level == index->levels - 2) {
+		/* next level is lowest level */
+		result = cch_index_create_lowest_entry(
+			index, parent, new_entry, offset);
+		if (result)
+			goto failure;
+	} else {
+		/* next level is mid level */
+		result = cch_index_create_mid_entry(
+			index, parent, new_entry, offset);
+		if (result)
+			goto failure;
+	}
+	result = 0;
+failure:
+	TRACE_EXIT();
+	return result;
+}
+
 static void cch_index_destroy_root_entry(struct cch_index *index)
 {
 	int current_size = 0;
@@ -287,64 +430,6 @@ int cch_index_load(struct cch_index *index, uint64_t start)
 }
 EXPORT_SYMBOL(cch_index_load);
 
-static int cch_index_create_lowest_entry(
-	struct cch_index *index,
-	struct cch_index_entry *parent,
-	struct cch_index_entry **new_entry,
-	int offset)
-{
-	int result = 0;
-	int i = 0;
-	TRACE_ENTRY();
-	BUG_ON(index == NULL);
-	BUG_ON(parent == NULL);
-	*new_entry = kmem_cache_zalloc(index->low_level_kmem, GFP_KERNEL);
-	if (!*new_entry) {
-		PRINT_ERROR("low level alloc failure");
-		result = -ENOSPC;
-		goto mem_failure;
-	}
-#ifdef CCH_INDEX_DEBUG
-	/* check real bounds of new object */
-	for (i = 0; i < index->levels_desc[index->lowest_level].size; i++)
-		sBUG_ON((*new_entry)->v[i].entry != 0);
-#endif
-	parent->v[offset].entry = *new_entry;
-	(*new_entry)->parent = (struct cch_index_entry *)
-		(((unsigned long) parent) | ENTRY_LOWEST_ENTRY_BIT);
-	TRACE_EXIT();
-mem_failure:
-	return result;
-}
-
-static int cch_index_create_mid_entry(
-	struct cch_index *index,
-	struct cch_index_entry *parent,
-	struct cch_index_entry **new_entry,
-	int offset)
-{
-	int result = 0;
-	int i = 0;
-	TRACE_ENTRY();
-	BUG_ON(index == NULL);
-	BUG_ON(parent == NULL);
-	*new_entry = kmem_cache_zalloc(index->mid_level_kmem, GFP_KERNEL);
-	if (!*new_entry) {
-		PRINT_ERROR("mid level alloc failure");
-		result = -ENOSPC;
-		goto mem_failure;
-	}
-#ifdef CCH_INDEX_DEBUG
-	for (i = 0; i < index->levels_desc[index->mid_level].size; i++)
-		sBUG_ON((*new_entry)->v[i].entry != 0);
-#endif
-	parent->v[offset].entry = *new_entry;
-	(*new_entry)->parent = parent;
-	TRACE_EXIT();
-mem_failure:
-	return result;
-}
-
 /* traverse key parts through index creating required index entries */
 static int cch_index_create_path(struct cch_index *index,
 	uint64_t key,
@@ -372,21 +457,11 @@ static int cch_index_create_path(struct cch_index *index,
 			   current_entry->v[record_offset].value);
 
 		if (current_entry->v[record_offset].entry == NULL) {
-			if (unlikely(next_to_lowest_level)) {
-				/* new entry will be at lowest level */
-				result = cch_index_create_lowest_entry(
-					index, current_entry,
-					&new_entry, record_offset);
-				if (result)
-					goto creation_failure;
-			} else {
-				result = cch_index_create_mid_entry(
-					index, current_entry,
-					&new_entry, record_offset);
-				if (result)
-					goto creation_failure;
-			}
-			current_entry->ref_cnt++;
+			result = __cch_index_entry_create(
+				index, current_entry, &new_entry, i,
+				record_offset);
+			if (result)
+				goto creation_failure;
 
 			PRINT_INFO("created new index entry at %p",
 				current_entry);
@@ -409,14 +484,12 @@ static int cch_index_traverse_lowest_entry(struct cch_index *index,
 	struct cch_index_entry *current_entry;
 	int result = 0;
 	int i = 0;
-	int next_to_lowest_level = 0;
 
 	TRACE_ENTRY();
 	sBUG_ON(index == NULL);
 	current_entry = &index->head;
 
 	for (i = 0; i < index->levels - 1; i++) {
-		next_to_lowest_level = i == index->levels - 2;
 		sBUG_ON(current_entry == NULL);
 
 		record_offset = EXTRACT_BIASED_VALUE(key,
@@ -454,13 +527,7 @@ int cch_index_find(struct cch_index *index, uint64_t key,
 	/* we need to dump the result somewhere */
 	sBUG_ON(out_value == NULL);
 
-	/*
-	 * FIXME cch_index_find_lowest_entry should be renamed to clarify
-	 * that it (optionally) creates missing index entries on the way
-	 * to lowest level
-	 */
 	result = cch_index_traverse_lowest_entry(index, key, &current_entry);
-	current_entry->v[0].value = 0;
 	if (result) {
 		*out_value = 0;
 		if (index_entry)
@@ -494,6 +561,9 @@ int cch_index_find_direct(struct cch_index_entry *entry, int offset,
 			  int *value_offset)
 {
 	sBUG_ON(entry == NULL);
+	/* step 1. Fast check if we could find entry right in given entry */
+	/* step 2. If not, find the right entry to search */
+	/* and search */
 	return -ENOENT;
 }
 EXPORT_SYMBOL(cch_index_find_direct);
@@ -537,9 +607,8 @@ int cch_index_insert(struct cch_index *index,
 	PRINT_INFO("computed offset is %d", record_offset);
 
 	/* save value to index */
-	current_entry->v[record_offset].value = value;
-
-	current_entry->ref_cnt++;
+	__cch_index_entry_insert_direct(current_entry,
+		record_offset, replace, value);
 
 	if (new_value_offset)
 		*new_value_offset = record_offset;
@@ -551,16 +620,167 @@ not_found:
 }
 EXPORT_SYMBOL(cch_index_insert);
 
-int cch_index_insert_direct(struct cch_index_entry *entry,
-			    bool replace,
-			    void *value,
-			    struct cch_index_entry **new_index_entry,
-			    int *new_value_offset)
+/* 
+ * Find lowest level index entry that is next in key order to
+ * given entry, creating one if required.
+ * 
+ * FIXME find_or_create_next_sibling or whatever
+ */
+static int __cch_index_entry_find_next_sibling(
+	struct cch_index *index,
+	struct cch_index_entry *entry,
+	struct cch_index_entry **sibling)
 {
+	int result = 0;
+	struct cch_index_entry *parent_entry, *this_entry;
+	int this_entry_level = 0;
+	int parent_entry_size = 0;
+	int sibling_offset = 0;
+	int i = 0;
+	TRACE_ENTRY();
+	sBUG_ON(index == NULL);
+	sBUG_ON(entry == NULL);
+	sBUG_ON(sibling == NULL);
+	/* 
+	 * idea is as follows:
+	 * Return to parent node
+	 * Find this entry in parent v[] table
+	 * See if there is a next record
+	 * If yes, return it into *sibling
+	 * If not, allocate one and return it
+	 * If there is no space to allocate it in this index_entry,
+	 * try to do so in his parent
+	 */
+	parent_entry = cch_index_entry_get_parent(entry);
+	this_entry = entry;
+	this_entry_level = index->levels - 1;
+	/* incorrect. We could return to parents more than once */
+	while (!cch_index_entry_is_root(parent_entry)) {
+		parent_entry_size = __cch_index_entry_size(index, entry);
+		for (i = 0; i < parent_entry_size; i++) {
+			/* 1/size probability of success */
+			if (unlikely(parent_entry->v[i].entry ==
+				this_entry)) {
+				/* ok, we found it, fall out of "for" */
+				break;
+			}
+
+			goto entry_not_found;
+		}
+		/* i now holds this_entry offset in parent_entry */
+		if (i + 1 >= parent_entry_size) {
+			this_entry = parent_entry;
+			parent_entry = cch_index_entry_get_parent(entry);
+			this_entry_level--;
+		} else
+			break; /* we can use sibling of this entry */
+	}
+	/* all of this complexity is to check if "i + 1" is safe */
+	sibling_offset = i + 1;
+	this_entry = parent_entry->v[sibling_offset].entry;
+	/* now in this_entry we have entry we should climb down
+	 * at v[0] entries to get the right sibling
+	 */
+	do {
+		if (this_entry == NULL) {
+			result = __cch_index_entry_create(
+				index, parent_entry, &this_entry,
+				this_entry_level, sibling_offset);
+			if (result)
+				goto failure;
+		}
+		parent_entry = this_entry;
+		this_entry = this_entry->v[0].entry;
+		this_entry_level++;
+		sibling_offset = 0;
+	} while (!cch_index_entry_is_lowest(this_entry));
+	*sibling = this_entry;
+	result = 0;
+	goto done;
+failure:
+done:
+		
+	TRACE_EXIT();
+	return result;
+entry_not_found:
+	/* 
+	 * We did not find it, which is error, parents should always
+	 * be connected with their children
+	 */
+	sBUG();
+	
+}
+
+/* 
+ * Find lowest level index entry that is previous in key order
+ * to given entry, creating one if required
+ */
+static int __cch_index_entry_find_prev_sibling(
+	struct cch_index *index,
+	struct cch_index_entry *entry,
+	struct cch_index_entry **sibling)
+{
+	int result = 0;
+	TRACE_ENTRY();
+	sBUG_ON(index == NULL);
+	sBUG_ON(entry == NULL);
+	sBUG_ON(*sibling == NULL);
+	TRACE_EXIT();
+	return result;
+}
+
+int cch_index_insert_direct(
+	struct cch_index *index,
+	struct cch_index_entry *entry,
+	int offset,
+	bool replace,
+	void *value,
+	struct cch_index_entry **new_index_entry,
+	int *new_value_offset)
+{
+	int result = 0;
+	int lowest_entry_size = 0;
+	struct cch_index_entry *right_entry = NULL;
 	TRACE_ENTRY();
 	sBUG_ON(entry == NULL);
+	/* we can insert entry only to lowest entry */
+	sBUG_ON(!cch_index_entry_is_lowest(entry));
+	right_entry = entry;
+	lowest_entry_size = __cch_index_entry_size(index, entry);
+
+/* offset overleaps to next index entry */
+	if (unlikely(offset > lowest_entry_size)) {
+		/* forward traversing */
+		/* need to find next sibling */
+		/* but offset shouldn't leap over one index_entry 
+		 * as we are searching for next sibling, not for the
+		 * arbitrary indexed sibling */
+		sBUG_ON(offset > 2 * lowest_entry_size);
+		result = __cch_index_entry_find_next_sibling(
+			index, entry, &right_entry);
+		if (result)
+			goto failure;
+		offset -= lowest_entry_size;
+
+/* offset overleaps to previous index entry */
+	} else if (unlikely(offset < 0)) {
+		/* we support backwards traversing */
+		/* need to find previous sibling */
+		sBUG(); /* not implemented yet */
+		result = __cch_index_entry_find_prev_sibling(
+			index, entry, &right_entry);
+		if (result)
+			goto failure;
+	}
+	/* we can insert right in this entry */
+	result = __cch_index_entry_insert_direct(right_entry, offset,
+		replace, value);
+	if (result)
+		goto failure;
+	
+failure:
 	TRACE_EXIT();
-	return -ENOSPC;
+	return result;
 }
 EXPORT_SYMBOL(cch_index_insert_direct);
 

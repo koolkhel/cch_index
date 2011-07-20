@@ -195,8 +195,16 @@ int cch_index_find(struct cch_index *index, uint64_t key,
 		   int *value_offset);
 
 /*
- * Access using offset. Result to out_value. Record offset to value_offset.
- * next_index_entry can be NULL, value_offset can be NULL
+ * This function searches for a value in the index using offset, 
+ * and returns 0 for success or a negative error code for failure. 
+ * On success, the target value for the key is returned in the 
+ * *out value pointer.
+ * 
+ * It also returns a pointer to the index entry for the target value 
+ * into **next index entry location and offset to the value in the 
+ * index entry into *value offset location. Those values can be used 
+ * later for subsequent calls to cch_index_find_direct(). Next index 
+ * entry and/or value offset can be NULL.
  */
 int cch_index_find_direct(struct cch_index_entry *entry, int offset,
 			  void **out_value,
@@ -218,11 +226,14 @@ int cch_index_insert(struct cch_index *index,
 /* insert to given entry with given offset.
  * If offset too high, insert to sibling, update the offset and entry
  */
-int cch_index_insert_direct(struct cch_index_entry *entry,
-			    bool replace,
-			    void *value,
-			    struct cch_index_entry **new_index_entry,
-			    int *new_value_offset);
+int cch_index_insert_direct(
+	struct cch_index *index,
+	struct cch_index_entry *entry,
+	int offset,
+	bool replace,
+	void *value,
+	struct cch_index_entry **new_index_entry,
+	int *new_value_offset);
 
 /* remove from index, return error, check_lock for entry */
 int cch_index_remove(struct cch_index *index, uint64_t key);

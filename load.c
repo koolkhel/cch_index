@@ -193,8 +193,63 @@ search_failure:
 insert_failure:
 remove_failure:
 	PRINT_INFO("********** attempt to destroy the index **********");
-	cch_index_destroy(index);
+	//cch_index_destroy(index);
 	PRINT_INFO("index destroy successful");
+creation_failure:
+	return result;
+}
+
+static int direct_test(void)
+{
+	int result;
+	struct cch_index *index;
+	struct cch_index_entry *new_index_entry;
+	void *insert_value = (void *) 0xBEEFDEADUL;
+	int new_value_offset;
+	int i = 0;
+	PRINT_INFO("******** *_direct functions test  *************\n");
+	result = cch_index_create(/* levels */    6,
+				  /* bits */      48,
+				  /* root_bits */ 8,
+				  /* low_bits */  8, /* 46 total */
+				  cch_index_start_save_fn,
+				  cch_index_finish_save_fn,
+				  cch_index_entry_save_fn,
+				  cch_index_value_free_fn,
+				  cch_index_load_data_fn,
+				  cch_index_load_entry_fn,
+				  &index);
+	if (result != 0) {
+		PRINT_ERROR("index creation failure, result %d", result);
+		goto creation_failure;
+	}
+
+	result = insert_to_index(index, 0,
+		insert_value, &new_index_entry, &new_value_offset);
+	if (result) {
+		PRINT_ERROR("index insert failure, result %d", result);
+		goto insert_failure;
+	}
+	/* ---------------------------------------------- */
+	/* now we should insert entries one by one without key */
+	/* ---------------------------------------------- */
+	for (i = 0; i < 1024; i++) {
+		new_value_offset++;
+		insert_value = (void *) (((unsigned long) insert_value) + 1);
+		result = cch_index_insert_direct(index, new_index_entry,
+			new_value_offset, false, insert_value,
+			&new_index_entry, &new_value_offset);
+		if (result) {
+			PRINT_ERROR("couldn't insert direct, result %d",
+				result);
+			goto insert_failure;
+		}
+		/* TODO cch_index_find_direct and cch_index_find
+		 * to verify success
+		 */
+	}
+insert_failure:
+	cch_index_destroy(index);
 creation_failure:
 	return result;
 }
@@ -207,7 +262,12 @@ static int __init reldata_index_init(void)
 	if (result != 0)
 		PRINT_ERROR("smoke test failure");
 	else
-		PRINT_ERROR("everything seem to be ok");
+		PRINT_ERROR("smoke test OK");
+	result = direct_test();
+	if (result)
+		PRINT_ERROR("direct test failure");
+	else
+		PRINT_ERROR("direct test success");
 	return result;
 }
 

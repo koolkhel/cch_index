@@ -5,6 +5,9 @@ MODULE_NAME := cchindex.ko
 
 default: $(MODULE_NAME)
 
+release:
+	git archive master | gzip - > ../index.tar.gz
+
 check:
 	linux/scripts/checkpatch.pl --emacs --file cch_index.c
 	linux/scripts/checkpatch.pl --emacs --file cch_index.h
