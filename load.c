@@ -145,17 +145,19 @@ static int smoke_test(void)
 	int i = 0;
 
 	PRINT_INFO("******** create index *************\n");
-	result = cch_index_create(/* levels */    6,
-				  /* bits */      48,
-				  /* root_bits */ 8,
-				  /* low_bits */  8, /* 46 total */
-				  cch_index_start_save_fn,
-				  cch_index_finish_save_fn,
-				  cch_index_entry_save_fn,
-				  cch_index_value_free_fn,
-				  cch_index_load_data_fn,
-				  cch_index_load_entry_fn,
-				  &index);
+	result = cch_index_create(
+		/* levels */    6,
+		/* total bits */     64,
+		/* root_bits */ 8,
+		/* low_bits */  8, /* 46 total */
+		cch_index_start_save_fn,
+		cch_index_finish_save_fn,
+		cch_index_entry_save_fn,
+		cch_index_value_free_fn,
+		cch_index_load_data_fn,
+		cch_index_load_entry_fn,
+		&index);
+
 	if (result != 0) {
 		PRINT_INFO("index creation failure, result %d\n", result);
 		goto creation_failure;
@@ -203,15 +205,15 @@ static int direct_test(void)
 {
 	int result;
 	struct cch_index *index;
-	struct cch_index_entry *new_index_entry;
+	struct cch_index_entry *new_index_entry, *index_entry;
 	void *insert_value = (void *) 0xBEEFDEADUL;
-	int new_value_offset;
+	int new_value_offset, offset;
 	int i = 0;
 	PRINT_INFO("******** *_direct functions test  *************\n");
 	result = cch_index_create(/* levels */    6,
-				  /* bits */      48,
+				  /* total bits */      64,
 				  /* root_bits */ 8,
-				  /* low_bits */  8, /* 46 total */
+				  /* low_bits */  8,
 				  cch_index_start_save_fn,
 				  cch_index_finish_save_fn,
 				  cch_index_entry_save_fn,
@@ -224,32 +226,42 @@ static int direct_test(void)
 		goto creation_failure;
 	}
 
-	result = insert_to_index(index, 0,
-		insert_value, &new_index_entry, &new_value_offset);
+	result = insert_to_index(index, 0xff00, insert_value,
+		&index_entry, &offset);
 	if (result) {
 		PRINT_ERROR("index insert failure, result %d", result);
 		goto insert_failure;
 	}
-	/* ---------------------------------------------- */
+	/* --------------------------------------------------- */
 	/* now we should insert entries one by one without key */
-	/* ---------------------------------------------- */
-	for (i = 0; i < 1024; i++) {
-		new_value_offset++;
+	/* --------------------------------------------------- */
+	for (i = 0; i < 4096; i++) {
+		offset++;
+		PRINT_INFO("inserting %d th record at offset %d",
+			   i, offset);
 		insert_value = (void *) (((unsigned long) insert_value) + 1);
-		result = cch_index_insert_direct(index, new_index_entry,
-			new_value_offset, false, insert_value,
+		result = cch_index_insert_direct(index, index_entry,
+			offset, false, insert_value,
 			&new_index_entry, &new_value_offset);
 		if (result) {
 			PRINT_ERROR("couldn't insert direct, result %d",
 				result);
 			goto insert_failure;
 		}
+		PRINT_INFO("inserted to entry %p with offset %d",
+			   new_index_entry, new_value_offset);
+
+		if (index_entry != new_index_entry)
+			PRINT_ERROR("inserted successfully to new index entry");
+
+		index_entry = new_index_entry;
+		offset = new_value_offset;
 		/* TODO cch_index_find_direct and cch_index_find
 		 * to verify success
 		 */
 	}
 insert_failure:
-	cch_index_destroy(index);
+	// cch_index_destroy(index);
 creation_failure:
 	return result;
 }

@@ -49,6 +49,7 @@ void cch_index_on_entry_free(struct cch_index_entry *index,
 	TRACE_ENTRY();
 	PRINT_INFO("index record free, %d -> %d", dec_size, new_size);
 	TRACE_EXIT();
+	return;
 }
 
 void cch_index_alloc_new_cluster(void)
@@ -56,6 +57,7 @@ void cch_index_alloc_new_cluster(void)
 	TRACE_ENTRY();
 	PRINT_INFO("alloc new cluster\n");
 	TRACE_EXIT();
+	return;
 }
 
 void cch_index_free_cluster(void)
@@ -63,28 +65,47 @@ void cch_index_free_cluster(void)
 	TRACE_ENTRY();
 	PRINT_INFO("free cluster\n");
 	TRACE_EXIT();
+	return;
 }
 
 void cch_index_start_save_fn(void)
 {
+	TRACE_ENTRY();
+	TRACE_EXIT();
+	return;
 }
 
 void cch_index_finish_save_fn(void)
 {
+	TRACE_ENTRY();
+	TRACE_EXIT();
+	return;
 }
 
 void cch_index_entry_save_fn(void)
 {
+	TRACE_ENTRY();
+	TRACE_EXIT();
+	return;
 }
 
 void cch_index_value_free_fn(void)
 {
+	TRACE_ENTRY();
+	TRACE_EXIT();
+	return;
 }
 
 void cch_index_load_data_fn(void)
 {
+	TRACE_ENTRY();
+	TRACE_EXIT();
+	return;
 }
 
 void cch_index_load_entry_fn(void)
 {
+	TRACE_ENTRY();
+	TRACE_EXIT();
+	return;
 }
