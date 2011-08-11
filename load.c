@@ -1,10 +1,11 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 
-#define CCH_INDEX_DEBUG
 #define LOG_PREFIX "load"
-#include "cch_index_debug.h"
+
 #include "cch_index.h"
+#include "cch_index_debug.h"
+
 
 /*
  * Wrappers to index function to avoid repeating of error checking
@@ -195,7 +196,7 @@ search_failure:
 insert_failure:
 remove_failure:
 	PRINT_INFO("********** attempt to destroy the index **********");
-	//cch_index_destroy(index);
+	cch_index_destroy(index);
 	PRINT_INFO("index destroy successful");
 creation_failure:
 	return result;
@@ -206,8 +207,11 @@ static int direct_test(void)
 	int result;
 	struct cch_index *index;
 	struct cch_index_entry *new_index_entry, *index_entry;
-	void *insert_value = (void *) 0xBEEFDEADUL;
+	struct cch_index_entry *first_index_entry;
+	void *insert_value;
 	int new_value_offset, offset;
+	int first_offset;
+	void *cmp_value;
 	int i = 0;
 	PRINT_INFO("******** *_direct functions test  *************\n");
 	result = cch_index_create(/* levels */    6,
@@ -226,16 +230,20 @@ static int direct_test(void)
 		goto creation_failure;
 	}
 
-	result = insert_to_index(index, 0xff00, insert_value,
-		&index_entry, &offset);
+	insert_value = (void *) 0xBEEFDEADUL;
+	result = insert_to_index(index, 0x0, insert_value,
+		&first_index_entry, &first_offset);
 	if (result) {
 		PRINT_ERROR("index insert failure, result %d", result);
 		goto insert_failure;
 	}
+	index_entry = first_index_entry;
+	offset = first_offset;
+	#define NUM_TEST_RECORDS 4098
 	/* --------------------------------------------------- */
 	/* now we should insert entries one by one without key */
 	/* --------------------------------------------------- */
-	for (i = 0; i < 4096; i++) {
+	for (i = 0; i < NUM_TEST_RECORDS; i++) {
 		offset++;
 		PRINT_INFO("inserting %d th record at offset %d",
 			   i, offset);
@@ -256,12 +264,39 @@ static int direct_test(void)
 
 		index_entry = new_index_entry;
 		offset = new_value_offset;
-		/* TODO cch_index_find_direct and cch_index_find
-		 * to verify success
-		 */
 	}
+
+	PRINT_ERROR("insert_direct test successful");
+
+	offset = first_offset;
+	index_entry = first_index_entry;
+	cmp_value = (void *) 0xBEEFDEADUL;
+	for (i = 0; i < NUM_TEST_RECORDS; i++) {
+		offset++;
+		cmp_value = (void *) (((unsigned long) cmp_value) + 1);
+		result = cch_index_find_direct(index, index_entry,
+			offset, &insert_value,
+			&new_index_entry, &new_value_offset);
+
+		if (result) {
+			PRINT_ERROR("error find direct");
+			goto search_failure;
+		}
+
+		if (cmp_value != insert_value) {
+			PRINT_ERROR("got %p instead of %p",
+				insert_value, cmp_value);
+			goto search_failure;
+		}
+		index_entry = new_index_entry;
+		offset = new_value_offset;
+	}
+
+	PRINT_ERROR("find_direct test successful");
+search_failure:
 insert_failure:
-	// cch_index_destroy(index);
+	PRINT_ERROR("%d records were successful", i);
+	cch_index_destroy(index);
 creation_failure:
 	return result;
 }

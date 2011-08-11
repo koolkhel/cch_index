@@ -1,7 +1,10 @@
 obj-m += cchindex.o
-cchindex-objs := load.o cch_index.o stubs.o cch_index_debug.o
+cchindex-objs := load.o cch_index.o stubs.o cch_index_debug.o cch_index_direct.o cch_index_common.o
 
-MODULE_NAME := cchindex.ko 
+SOURCES := load.c cch_index.c cch_index.h stubs.c cch_index_debug.c \
+cch_index_debug.h cch_index_direct.c cch_index_common.c cch_index_common.h
+
+MODULE_NAME := cchindex.ko
 
 default: $(MODULE_NAME)
 
@@ -20,7 +23,7 @@ EXTRA_CFLAGS:=-g
 dump: $(MODULE_NAME)
 	objdump -DglS $(MODULE_NAME) > asm-source.txt
 
-$(MODULE_NAME): load.c cch_index.c cch_index.h stubs.c cch_index_debug.c cch_index_debug.h
+$(MODULE_NAME): $(SOURCES)
 	make -C linux M=`pwd` modules
 
 clean:
@@ -36,4 +39,8 @@ last-deploy:
 	touch last-deploy
 
 deploy: $(MODULE_NAME) last-deploy
+	rm -f asm-source.txt
 	lftp -f ftp-deploy
+
+gendocs:
+	doxygen doc.conf

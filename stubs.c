@@ -1,5 +1,4 @@
 
-#define CCH_INDEX_DEBUG
 #define LOG_PREFIX "cch_index_stubs"
 
 #include "cch_index_debug.h"

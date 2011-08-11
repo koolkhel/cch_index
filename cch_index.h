@@ -1,6 +1,8 @@
 #ifndef RELDATA_INDEX_H
 #define RELDATA_INDEX_H
 
+#define CCH_INDEX_DEBUG
+
 #include <linux/kernel.h>
 #include <linux/spinlock.h>
 #include <linux/list.h>
@@ -24,7 +26,12 @@ void cch_index_value_free_fn(void);
 void cch_index_load_data_fn(void);
 void cch_index_load_entry_fn(void);
 
+#define CCH_INDEX_ENTRY_MAGIC 0x117700FF
+
 struct cch_index_entry {
+	#ifdef CCH_INDEX_DEBUG
+	int magic;
+	#endif
 	/* how many entries inside / how many children entries */
 	int ref_cnt;
 	/* NULL for root,
@@ -84,6 +91,18 @@ struct cch_index {
 	struct cch_index_entry head;
 };
 
+/** 
+ * extract part of key that describes i-th level of index,
+ * it can be used as offset of v[] table of index entry
+ */
+#define EXTRACT_BIASED_VALUE(key, levels_description, i)	\
+	((key >> levels_description[i].offset) &		\
+	 ((1UL << levels_description[i].bits) - 1))
+
+#define	EXTRACT_LOWEST_OFFSET(index, key)				\
+	EXTRACT_BIASED_VALUE(key, index->levels_desc, index->levels - 1)
+
+
 extern int cch_index_check_lock(void *value);
 extern int cch_index_value_lock(void *value);
 extern int cch_index_value_unlock(void *value);
@@ -107,6 +126,12 @@ static inline int cch_index_entry_is_root(struct cch_index_entry *entry)
 static inline int cch_index_entry_is_lowest(struct cch_index_entry *entry)
 {
 	return (int) ((unsigned long) entry->parent) & ENTRY_LOWEST_ENTRY_BIT;
+}
+
+static inline int cch_index_entry_is_mid_level(struct cch_index_entry *entry)
+{
+	return !(cch_index_entry_is_root(entry) ||
+		 cch_index_entry_is_lowest(entry));
 }
 
 /* locked for load/unload */
@@ -161,6 +186,24 @@ static inline int cch_index_entry_is_unloaded(struct cch_index_entry *entry)
 
 /* create and load */
 
+/*
+ * get number of elements this entry could hold. Practically,
+ * size (in records) of v[] array.
+ */
+static inline int cch_index_entry_size(struct cch_index *index,
+	struct cch_index_entry *entry)
+{
+	int size;
+	if (cch_index_entry_is_lowest(entry)) {
+		size = index->levels_desc[index->lowest_level].size;
+	} else if (cch_index_entry_is_root(entry)) {
+		size = index->levels_desc[index->root_level].size;
+	} else {
+		size = index->levels_desc[index->mid_level].size;
+	}
+	return size;
+}
+
 int cch_index_create(
 	int levels,
 	int bits,
@@ -206,10 +249,12 @@ int cch_index_find(struct cch_index *index, uint64_t key,
  * later for subsequent calls to cch_index_find_direct(). Next index 
  * entry and/or value offset can be NULL.
  */
-int cch_index_find_direct(struct cch_index_entry *entry, int offset,
-			  void **out_value,
-			  struct cch_index_entry **next_index_entry,
-			  int *value_offset);
+int cch_index_find_direct(
+	struct cch_index *index,
+	struct cch_index_entry *entry, int offset,
+	void **out_value,
+	struct cch_index_entry **next_index_entry,
+	int *value_offset);
 
 /* insertion */
 
@@ -238,7 +283,10 @@ int cch_index_insert_direct(
 /* remove from index, return error, check_lock for entry */
 int cch_index_remove(struct cch_index *index, uint64_t key);
 
-int cch_index_remove_direct(struct cch_index_entry *entry, int offset);
+int cch_index_remove_direct(
+	struct cch_index *index,
+	struct cch_index_entry *entry,
+	int offset);
 
 /* push excessive data to block device, reach max_mem_kb memory usage */
 int cch_index_shrink(struct cch_index_entry *index, int max_mem_kb);

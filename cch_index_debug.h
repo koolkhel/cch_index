@@ -10,8 +10,17 @@
 #define TRACE_LINE           0x00000004
 #define TRACE_PID            0x00000008
 
-#ifdef CCH_INDEX_DEBUG
+#define POINTER_FREED(pointer) \
+	((((u8 *) pointer)[0] == POISON_FREE) & \
+	 (((u8 *) pointer)[1] == POISON_FREE) & \
+	 (((u8 *) pointer)[2] == POISON_FREE) & \
+	 (((u8 *) pointer)[3] == POISON_FREE))
 
+int cch_debug_print_prefix(
+	unsigned long trace_flag,
+	const char *prefix, const char *func, int line);
+
+/* sBUG_ON should be there always */
 #define sBUG() do {						\
 	printk(KERN_CRIT "BUG at %s:%d\n",			\
 	       __FILE__, __LINE__);				\
@@ -31,13 +40,6 @@
 		BUG();						\
 	}							\
 } while (0)
-
-#else
-
-#define sBUG() BUG()
-#define sBUG_ON(p) BUG_ON(p)
-
-#endif /* CCH_INDEX_DEBUG */
 
 /*
  * Note: in the next two printk() statements the KERN_CONT macro is only
@@ -61,8 +63,8 @@ int debug_print_prefix(unsigned long trace_flag,
 
 #define TRACE(trace, format, args...)					\
 do {									\
-	if (___unlikely(trace_flag & (trace))) {			\
-		debug_print_prefix(trace_flag, __LOG_PREFIX,		\
+	if (unlikely(trace_flag & (trace))) {			\
+		cch_debug_print_prefix(trace_flag, __LOG_PREFIX,		\
 				       __func__, __LINE__);		\
 		PRINT(KERN_CONT, format, args);				\
 	}								\
