@@ -1,7 +1,7 @@
 #ifndef RELDATA_INDEX_H
 #define RELDATA_INDEX_H
 
-#define CCH_INDEX_DEBUG
+// #define CCH_INDEX_DEBUG
 
 #include <linux/kernel.h>
 #include <linux/spinlock.h>

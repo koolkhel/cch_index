@@ -7,7 +7,9 @@
 #include "cch_index_debug.h"
 #include "cch_index_direct.h"
 
+#ifdef CCH_INDEX_DEBUG
 static int trace_flag = TRACE_DEBUG;
+#endif
 
 int cch_index_remove_direct(
 	struct cch_index *index,
@@ -59,7 +61,7 @@ int cch_index_insert_direct(
 
 	TRACE(TRACE_DEBUG, "insert_direct: offset: %d, size: %d\n",
 	      offset, lowest_entry_size);
-/* offset overleaps to next index entry */
+	/* offset overleaps to next index entry */
 	if (unlikely(offset >= lowest_entry_size)) {
 		/* forward traversing */
 		/* need to find next sibling */
@@ -76,7 +78,7 @@ int cch_index_insert_direct(
 		sBUG_ON(right_entry == entry);
 		offset -= lowest_entry_size;
 
-/* offset overleaps to previous index entry */
+		/* offset overleaps to previous index entry */
 	} else if (unlikely(offset < 0)) {
 		/* we support backwards traversing */
 		/* need to find previous sibling */
@@ -141,7 +143,7 @@ int cch_index_find_direct(
 	TRACE(TRACE_DEBUG, "reading entry %p sized %d with offset %d",
 	      entry, lowest_entry_size, offset);
 
-/* offset overleaps to next index entry */
+	/* offset overleaps to next index entry */
 	if (unlikely(offset >= lowest_entry_size)) {
 		/* forward traversing */
 		/* need to find next sibling */
@@ -158,7 +160,7 @@ int cch_index_find_direct(
 		sBUG_ON(right_entry == entry);
 		offset -= lowest_entry_size;
 
-/* offset overleaps to previous index entry */
+		/* offset overleaps to previous index entry */
 	} else if (unlikely(offset < 0)) {
 		/* we support backwards traversing */
 		/* need to find previous sibling */

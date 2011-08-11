@@ -19,7 +19,7 @@ static int insert_to_index(struct cch_index *index,
 {
 	int result;
 	TRACE_ENTRY();
-	printk(KERN_INFO "index insert start\n");
+	PRINT_INFO("index insert start");
 	result = cch_index_insert(index,
 				  /* key */ key,
 				  /* value */ value,
@@ -28,9 +28,9 @@ static int insert_to_index(struct cch_index *index,
 				  new_value_offset);
 
 	if (result != 0) {
-		printk(KERN_INFO "index insert failure, result %d\n", result);
+		PRINT_ERROR("index insert failure, result %d\n", result);
 	} else if (new_index_entry != NULL && new_value_offset != NULL) {
-		printk(KERN_INFO "index insert ok, address %lx, offset %x\n",
+		PRINT_INFO("index insert ok, address %lx, offset %x\n",
 		       (unsigned long) *new_index_entry,
 		       *new_value_offset);
 	}
@@ -416,6 +416,11 @@ static int __init reldata_index_init(void)
 	else
 		PRINT_ERROR("remove cleanup test success");
 
+	/* need to print regardless of CCH_INDEX_DEBUG */
+	if (result == 0)
+		printk(KERN_INFO "all ok");
+	else
+		printk(KERN_INFO "failure");
 	return result;
 }
 
