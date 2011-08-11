@@ -91,7 +91,7 @@ struct cch_index {
 	struct cch_index_entry head;
 };
 
-/** 
+/**
  * extract part of key that describes i-th level of index,
  * it can be used as offset of v[] table of index entry
  */
@@ -194,13 +194,12 @@ static inline int cch_index_entry_size(struct cch_index *index,
 	struct cch_index_entry *entry)
 {
 	int size;
-	if (cch_index_entry_is_lowest(entry)) {
+	if (cch_index_entry_is_lowest(entry))
 		size = index->levels_desc[index->lowest_level].size;
-	} else if (cch_index_entry_is_root(entry)) {
+	else if (cch_index_entry_is_root(entry))
 		size = index->levels_desc[index->root_level].size;
-	} else {
+	else
 		size = index->levels_desc[index->mid_level].size;
-	}
 	return size;
 }
 
@@ -238,15 +237,15 @@ int cch_index_find(struct cch_index *index, uint64_t key,
 		   int *value_offset);
 
 /*
- * This function searches for a value in the index using offset, 
- * and returns 0 for success or a negative error code for failure. 
- * On success, the target value for the key is returned in the 
+ * This function searches for a value in the index using offset,
+ * and returns 0 for success or a negative error code for failure.
+ * On success, the target value for the key is returned in the
  * *out value pointer.
- * 
- * It also returns a pointer to the index entry for the target value 
- * into **next index entry location and offset to the value in the 
- * index entry into *value offset location. Those values can be used 
- * later for subsequent calls to cch_index_find_direct(). Next index 
+ *
+ * It also returns a pointer to the index entry for the target value
+ * into **next index entry location and offset to the value in the
+ * index entry into *value offset location. Those values can be used
+ * later for subsequent calls to cch_index_find_direct(). Next index
  * entry and/or value offset can be NULL.
  */
 int cch_index_find_direct(

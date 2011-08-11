@@ -240,7 +240,7 @@ static int direct_test(void)
 	}
 	index_entry = first_index_entry;
 	offset = first_offset;
-	#define NUM_TEST_RECORDS 16385
+	#define NUM_TEST_RECORDS 4098
 	/* --------------------------------------------------- */
 	/* now we should insert entries one by one without key */
 	/* --------------------------------------------------- */
@@ -396,14 +396,14 @@ static int __init reldata_index_init(void)
 	PRINT_INFO("hello, world!");
 
 	/* check if index can hold some records at all */
-	//result = smoke_test();
+	result = smoke_test();
 	if (result != 0)
 		PRINT_ERROR("smoke test failure");
 	else
 		PRINT_ERROR("smoke test OK");
 
-	/* check 16k records using direct access */
-	//result = direct_test();
+	/* check 4k records using direct access */
+	result = direct_test();
 	if (result)
 		PRINT_ERROR("direct test failure");
 	else

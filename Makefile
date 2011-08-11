@@ -16,6 +16,9 @@ check:
 	linux/scripts/checkpatch.pl --emacs --file cch_index.h
 	linux/scripts/checkpatch.pl --emacs --file cch_index_debug.h
 	linux/scripts/checkpatch.pl --emacs --file cch_index_debug.c
+	linux/scripts/checkpatch.pl --emacs --file cch_index_common.h
+	linux/scripts/checkpatch.pl --emacs --file cch_index_common.c
+	linux/scripts/checkpatch.pl --emacs --file cch_index_direct.c
 	linux/scripts/checkpatch.pl --emacs --file load.c
 	linux/scripts/checkpatch.pl --emacs --file stubs.c
 EXTRA_CFLAGS:=-g

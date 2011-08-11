@@ -63,8 +63,8 @@ int debug_print_prefix(unsigned long trace_flag,
 
 #define TRACE(trace, format, args...)					\
 do {									\
-	if (unlikely(trace_flag & (trace))) {			\
-		cch_debug_print_prefix(trace_flag, __LOG_PREFIX,		\
+	if (unlikely(trace_flag & (trace))) {				\
+		cch_debug_print_prefix(trace_flag, __LOG_PREFIX,	\
 				       __func__, __LINE__);		\
 		PRINT(KERN_CONT, format, args);				\
 	}								\

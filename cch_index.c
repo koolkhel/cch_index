@@ -15,7 +15,7 @@
  * Generate level description structure with given parameters.
  * BUG if requested configuration requires non-equal sizes
  * of middle level entries.
- * 
+ *
  * @arg index
  * @arg levels
  * @arg bits
@@ -38,8 +38,8 @@ static int generate_level_descriptions(struct cch_index *index,
 
 	sBUG_ON(index == NULL);
 
-        /* there is an assumption that all mid level cache entries are
-	   of the same size, so there should be no leftover 
+	/* there is an assumption that all mid level cache entries are
+	   of the same size, so there should be no leftover
 	 */
 	sBUG_ON(misbits != 0);
 
@@ -352,7 +352,7 @@ int cch_index_remove(struct cch_index *index, uint64_t key)
 
 	/* and now we check if some entries should be cleaned up */
 	cch_index_entry_cleanup(index, current_entry);
-	
+
 	result = 0;
 not_found:
 	TRACE_EXIT();

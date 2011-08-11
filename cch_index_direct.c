@@ -5,33 +5,9 @@
 #include "cch_index.h"
 #include "cch_index_common.h"
 #include "cch_index_debug.h"
+#include "cch_index_direct.h"
 
 static int trace_flag = TRACE_DEBUG;
-
-void __cch_index_climb_to_first_capable_parent(
-	struct cch_index *index,
-	struct cch_index_entry *entry,
-	struct cch_index_entry **subtree_root,
-	int *offset,
-	int *entry_level,
-	int direction);
-
-int __cch_index_entry_create_next_sibling(
-	struct cch_index *index,
-	struct cch_index_entry *entry,
-	struct cch_index_entry **sibling);
-
-int __cch_index_entry_find_next_sibling(
-	struct cch_index *index,
-	struct cch_index_entry *entry,
-	struct cch_index_entry **sibling);
-
-int __cch_index_entry_find_prev_sibling(
-	struct cch_index *index,
-	struct cch_index_entry *entry,
-	struct cch_index_entry **sibling);
-
-
 
 int cch_index_remove_direct(
 	struct cch_index *index,
@@ -44,7 +20,7 @@ int cch_index_remove_direct(
 	/* FIXME locking */
 	sBUG_ON(!cch_index_entry_is_lowest(entry));
 
-	/* 
+	/*
 	 * doesn't seem like we should leap to next entry
 	 * on offset overflow
 	 */
@@ -87,7 +63,7 @@ int cch_index_insert_direct(
 	if (unlikely(offset >= lowest_entry_size)) {
 		/* forward traversing */
 		/* need to find next sibling */
-		/* but offset shouldn't leap over one index_entry 
+		/* but offset shouldn't leap over one index_entry
 		 * as we are searching for next sibling, not for the
 		 * arbitrary indexed sibling */
 		sBUG_ON(offset >= 2 * lowest_entry_size);
@@ -122,7 +98,7 @@ int cch_index_insert_direct(
 		*new_value_offset = offset;
 	if (new_index_entry)
 		*new_index_entry = right_entry;
-	
+
 failure:
 	TRACE_EXIT();
 
@@ -152,9 +128,9 @@ int cch_index_find_direct(
 #ifdef CCH_INDEX_DEBUG
 	sBUG_ON(entry->magic != CCH_INDEX_ENTRY_MAGIC);
 #endif
-        /* logic is same as in insert_direct, but we must not create
+	/* logic is same as in insert_direct, but we must not create
 	 * any siblings as we do in insert_direct:
-	 * 
+	 *
 	 * 1. check if we can't find given offset in current entry */
 
 	/* 2. if not, seek for index_entry that can hold remainder of offset */
@@ -169,7 +145,7 @@ int cch_index_find_direct(
 	if (unlikely(offset >= lowest_entry_size)) {
 		/* forward traversing */
 		/* need to find next sibling */
-		/* but offset shouldn't leap over one index_entry 
+		/* but offset shouldn't leap over one index_entry
 		 * as we are searching for next sibling, not for the
 		 * arbitrary indexed sibling */
 		sBUG_ON(offset >= 2 * lowest_entry_size);
@@ -196,14 +172,14 @@ int cch_index_find_direct(
 	/* now, find */
 
 	*out_value = right_entry->v[offset].value;
-	
+
 	if (out_value == NULL)
 		result = -ENOENT;
 	if (value_offset)
 		*value_offset = offset;
 	if (next_index_entry)
 		*next_index_entry = right_entry;
-	
+
 failure:
 	TRACE_EXIT();
 
@@ -214,23 +190,23 @@ EXPORT_SYMBOL(cch_index_find_direct);
 /**
  * Search first index entry that is capable of holding
  * (i + 1)th branch started at @arg entry.
- * 
+ *
  * Get parent of current entry, find current entry in parent,
  * see if (i + 1) is possible. If not, go up one level, if yes --
  * that's the result. Repeat till root entry which is capable
  * of holding 2^bits keys with low chances of overflow.
- * 
+ *
  * Needed to extract this code as it is reusable for *_direct functions.
- * 
+ *
  * Also, this function can not fail thus no return code.
  * When it fails, it's a programming bug.
- * 
+ *
  * @arg index
  * @arg entry -- starting entry, always of lowest level
  * @arg subtree_root -- the result (any from parent of "entry" to root entry)
  * @arg offset -- offset of path from "entry" to "subtree_root" in
  *      subtree_root v[] table
- * @arg entry_level -- level of subtree_root, 0 -- root, 
+ * @arg entry_level -- level of subtree_root, 0 -- root,
  *      index->levels -1 -- lowest
  * @arg direction -- for capabilities of backwards traversal,
  *      this arg specifies if we're searching for (i+1)-capable subtree_root,
@@ -263,7 +239,7 @@ void __cch_index_climb_to_first_capable_parent(
 #ifdef CCH_INDEX_DEBUG
 	sBUG_ON(entry->magic != CCH_INDEX_ENTRY_MAGIC);
 #endif
-	
+
 	this_entry = entry;
 	parent_entry = cch_index_entry_get_parent(this_entry);
 	/* this_entry is at lowest level */
@@ -295,7 +271,7 @@ void __cch_index_climb_to_first_capable_parent(
 
 		TRACE(TRACE_DEBUG, "climb i is %d and size is %d",
 		      i, parent_entry_size);
-		if (i + 1 < parent_entry_size) 
+		if (i + 1 < parent_entry_size)
 			break; /* we can use that */
 
 		this_entry = parent_entry;
@@ -313,17 +289,17 @@ void __cch_index_climb_to_first_capable_parent(
 
 	return;
 entry_not_found:
-	/* 
-	 * We did not find it, which is error (index corruption), 
+	/*
+	 * We did not find it, which is error (index corruption),
 	 * parents should always be connected with their children
 	 */
 	sBUG();
 }
 
-/* 
+/*
  * Find lowest level index entry that is next in key order to
  * given entry, creating one if required.
- * 
+ *
  * @arg index
  * @arg entry -- lowest level index_entry which sibling we are looking
  *               for
@@ -350,11 +326,11 @@ int __cch_index_entry_create_next_sibling(
 	sBUG_ON(entry->magic != CCH_INDEX_ENTRY_MAGIC);
 #endif
 
-        /* 
+	/*
 	 * The function consists of two parts:
-	 * 
+	 *
 	 * 1. Find index_entry that is root point for (i+1) transition
-	 * 
+	 *
 	 * 2. Go down from that entry to lowest level, creating
 	 *    entries on the way, so we create a lowest_level
 	 *    entry that is a (i + 1) sibling to "entry" argument
@@ -363,8 +339,8 @@ int __cch_index_entry_create_next_sibling(
 		index, entry, &parent_entry, &i, &this_entry_level, 1);
 
 	sibling_offset = i + 1;
-	TRACE(TRACE_DEBUG, "we can traverse down from %p at offset %d, level %d",
-		   parent_entry, sibling_offset, this_entry_level);
+	TRACE(TRACE_DEBUG, "we can traverse down from %p at offset %d, "
+	      "level %d", parent_entry, sibling_offset, this_entry_level);
 
 /* all of this complexity is to check if "i + 1" is safe */
 	/* now in this_entry we have entry we should climb down
@@ -373,7 +349,7 @@ int __cch_index_entry_create_next_sibling(
 	while (this_entry_level < index->levels - 1) {
 		this_entry = parent_entry->v[sibling_offset].entry;
 		this_entry_level++;
-	
+
 		PRINT_INFO("this level is %d", this_entry_level);
 		if (this_entry == NULL) {
 			result = cch_index_entry_create(
@@ -408,7 +384,7 @@ create_entry_failure:
 
 /**
  * Find next (in key order) sibling to given entry, if there is one.
- * 
+ *
  * The difference with previous (..._create_next_sibling)
  * is that this function doesn't create any new index entries, so
  * it is suitable for search.
@@ -431,11 +407,11 @@ int __cch_index_entry_find_next_sibling(
 	sBUG_ON(sibling == NULL);
 	sBUG_ON(!cch_index_entry_is_lowest(entry));
 
-        /* 
+	/*
 	 * The function consists of two parts:
-	 * 
+	 *
 	 * 1. Find index_entry that is root point for (i+1) transition
-	 * 
+	 *
 	 * 2. Go down from that entry to lowest level, creating
 	 *    entries on the way, so we create a lowest_level
 	 *    entry that is a (i + 1) sibling to "entry" argument
@@ -455,7 +431,7 @@ int __cch_index_entry_find_next_sibling(
 	while (this_entry_level < index->levels - 1) {
 		this_entry = parent_entry->v[sibling_offset].entry;
 		this_entry_level++;
-	
+
 		PRINT_INFO("this level is %d", this_entry_level);
 		if (this_entry == NULL) {
 			result = -ENOENT;
@@ -474,7 +450,7 @@ not_found:
 	return result;
 }
 
-/** 
+/**
  * Find lowest level index entry that is previous in key order
  * to given entry, creating one if required
  * @arg
