@@ -351,6 +351,7 @@ int cch_index_remove(struct cch_index *index, uint64_t key)
 	cch_index_entry_remove_value(index, current_entry, lowest_offset);
 
 	/* and now we check if some entries should be cleaned up */
+	cch_index_entry_cleanup(index, current_entry);
 	
 	result = 0;
 not_found:
