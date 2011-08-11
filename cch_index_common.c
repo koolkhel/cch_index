@@ -63,12 +63,15 @@ void cch_index_destroy_mid_level_entry(struct cch_index *index,
 	int current_size = 0, i = 0;
 
 	TRACE_ENTRY();
+
+	/* questionable, but works */
+	sBUG_ON(entry == NULL);
+	sBUG_ON(POINTER_FREED(entry));
+
+
 	TRACE(TRACE_DEBUG, "destroy mid level %p, level %d, references %d",
 	      entry, level, entry->ref_cnt);
 
-/* questionable, but works */
-	sBUG_ON(entry == NULL);
-	sBUG_ON(POINTER_FREED(entry));
 	if (!cch_index_entry_is_mid_level(entry)) {
 		if (cch_index_entry_is_lowest(entry)) {
 			PRINT_INFO("entry is lowest");
@@ -194,8 +197,8 @@ void cch_index_destroy_root_entry(struct cch_index *index)
 		index->head.ref_cnt--;
 	}
 
-	TRACE(TRACE_DEBUG,
-	      "remaning reference for root is %d", index->head.ref_cnt);
+	TRACE(TRACE_DEBUG, "remaning reference for root is %d",
+	      index->head.ref_cnt);
 	sBUG_ON(index->head.ref_cnt != 0);
 
 	TRACE_EXIT();
@@ -221,8 +224,12 @@ int cch_index_create_path(
 	int i = 0;
 	/* current iteration of key traverse is next to lowest level of index */
 	int next_to_lowest_level;
+
 	TRACE_ENTRY();
-	BUG_ON(index == NULL);
+
+	sBUG_ON(index == NULL);
+	sBUG_ON(lowest_entry == NULL);
+
 	current_entry = &index->head;
 
 	for (i = 0; i < index->levels - 1; i++) {
@@ -240,7 +247,7 @@ int cch_index_create_path(
 				index, current_entry, &new_entry, i + 1,
 				record_offset);
 			if (result)
-				goto creation_failure;
+				goto out;
 
 			PRINT_INFO("created new index entry at %p",
 				current_entry);
@@ -249,8 +256,7 @@ int cch_index_create_path(
 	}
 
 	*lowest_entry = current_entry;
-
-creation_failure:
+out:
 	TRACE_EXIT();
 	return result;
 }
@@ -292,7 +298,7 @@ int cch_index_walk_path(
 			current_entry = current_entry->v[record_offset].entry;
 		} else {
 			result = -ENOENT;
-			goto not_found;
+			goto out;
 		}
 	}
 
@@ -301,7 +307,7 @@ int cch_index_walk_path(
 	sBUG_ON(*found_entry == NULL);
 	sBUG_ON(!cch_index_entry_is_lowest(*found_entry));
 
-not_found:
+out:
 	TRACE_EXIT();
 
 	return result;
@@ -337,7 +343,7 @@ int cch_index_create_lowest_entry(
 	if (!*new_entry) {
 		PRINT_ERROR("low level alloc failure");
 		result = -ENOSPC;
-		goto mem_failure;
+		goto out;
 	}
 	parent->v[offset].entry = *new_entry;
 	(*new_entry)->parent = (struct cch_index_entry *)
@@ -349,10 +355,11 @@ int cch_index_create_lowest_entry(
 	for (i = 0; i < cch_index_entry_size(index, *new_entry); i++)
 		sBUG_ON((*new_entry)->v[i].entry != NULL);
 	(*new_entry)->magic = CCH_INDEX_ENTRY_MAGIC;
-#endif
+#endif	
 
+out:
 	TRACE_EXIT();
-mem_failure:
+
 	return result;
 }
 
@@ -383,7 +390,7 @@ int cch_index_create_mid_entry(
 	if (!*new_entry) {
 		PRINT_ERROR("mid level alloc failure");
 		result = -ENOSPC;
-		goto mem_failure;
+		goto out;
 	}
 	parent->v[offset].entry = *new_entry;
 	(*new_entry)->parent = parent;
@@ -395,7 +402,7 @@ int cch_index_create_mid_entry(
 	(*new_entry)->magic = CCH_INDEX_ENTRY_MAGIC;
 #endif
 
-mem_failure:
+out:
 	TRACE_EXIT();
 
 	return result;
@@ -429,16 +436,16 @@ int cch_index_entry_create(
 		result = cch_index_create_lowest_entry(
 			index, parent, new_entry, offset);
 		if (result)
-			goto failure;
+			goto out;
 	} else {
 		/* next level is mid level */
 		result = cch_index_create_mid_entry(
 			index, parent, new_entry, offset);
 		if (result)
-			goto failure;
+			goto out;
 	}
 
-failure:
+out:
 	TRACE_EXIT();
 
 	return result;
@@ -486,12 +493,12 @@ int cch_index_entry_insert_direct(
 		entry->v[offset].value = value;
 	} else {
 		result = -EEXIST;
-		goto failure;
+		goto out;
 	}
 
 	TRACE(TRACE_DEBUG,
 	      "result of insert is %p", entry->v[offset].value);
-failure:
+out:
 	TRACE_EXIT();
 
 	return result;

@@ -37,7 +37,6 @@ static int generate_level_descriptions(struct cch_index *index,
 	TRACE_ENTRY();
 
 	sBUG_ON(index == NULL);
-
 	/* there is an assumption that all mid level cache entries are
 	   of the same size, so there should be no leftover
 	 */
@@ -68,6 +67,7 @@ static int generate_level_descriptions(struct cch_index *index,
 	index->root_level = 0; /* probably a bad idea */
 
 	TRACE_EXIT();
+
 	return result;
 }
 
@@ -129,7 +129,7 @@ int cch_index_create(
 	if (new_index == NULL) {
 		PRINT_ERROR("vmalloc failed during index create");
 		result = -ENOMEM;
-		goto mem_failure;
+		goto out;
 	}
 
 	/* root + levels + lowest level */
@@ -140,14 +140,14 @@ int cch_index_create(
 
 	if (new_index->levels_desc == NULL) {
 		result = -ENOMEM;
-		goto levels_desc_failure;
+		goto out_free_index;
 	}
 
 	result = generate_level_descriptions(new_index, levels,
 		bits, root_bits, low_bits);
 	if (result) {
 		PRINT_ERROR("error creating caches\n");
-		goto mem_failure;
+		goto out_free_index;
 	}
 #ifdef CCH_INDEX_DEBUG
 	show_index_description(new_index);
@@ -160,10 +160,12 @@ int cch_index_create(
 		* sizeof(new_index->head.v[0]) +
 		sizeof(struct cch_index_entry),
 		CCH_INDEX_LOW_LEVEL_ALIGN, 0, NULL);
+
 	if (!new_index->low_level_kmem) {
 		result = -ENOMEM;
-		goto slab_failure;
+		goto out_free_descriptions;
 	}
+
 	PRINT_INFO("cch_index_low_level object size %d",
 		   kmem_cache_size(new_index->low_level_kmem));
 
@@ -177,31 +179,34 @@ int cch_index_create(
 
 	if (!new_index->mid_level_kmem) {
 		result = -ENOMEM;
-		goto slab_failure;
+		goto out_free_low_level_kmem;
 	}
 	PRINT_INFO("cch_index_mid_level object size %d",
 		   kmem_cache_size(new_index->mid_level_kmem));
 
-/* FIXME goto's */
-	result = 0;
 	*out = new_index;
-	goto success;
-levels_desc_failure:
-	kfree(new_index);
-slab_failure:
-mem_failure:
-success:
+out:
 	TRACE_EXIT();
+
 	return result;
+
+out_free_low_level_kmem:
+	kmem_cache_destroy(new_index->low_level_kmem);
+out_free_descriptions:
+	kfree(new_index->levels_desc);
+out_free_index:
+	kfree(new_index);
+	goto out;
 }
 EXPORT_SYMBOL(cch_index_create);
 
 void cch_index_destroy(struct cch_index *index)
 {
 	TRACE_ENTRY();
+
 	sBUG_ON(index == NULL);
 
-/* FIXME check usage */
+	/* FIXME check usage */
 	/* FIXME locking */
 	cch_index_destroy_root_entry(index);
 	kmem_cache_destroy(index->low_level_kmem);
@@ -218,8 +223,11 @@ EXPORT_SYMBOL(cch_index_destroy);
 uint64_t cch_index_save(struct cch_index *index)
 {
 	TRACE_ENTRY();
+
 	sBUG_ON(index == NULL);
+
 	TRACE_EXIT();
+
 	return -ENOSPC;
 }
 EXPORT_SYMBOL(cch_index_save);
@@ -227,8 +235,11 @@ EXPORT_SYMBOL(cch_index_save);
 int cch_index_load(struct cch_index *index, uint64_t start)
 {
 	TRACE_ENTRY();
+
 	sBUG_ON(index == NULL);
+
 	TRACE_EXIT();
+
 	return -ENOSPC;
 }
 EXPORT_SYMBOL(cch_index_load);
@@ -254,7 +265,7 @@ int cch_index_find(struct cch_index *index, uint64_t key,
 		if (value_offset)
 			*value_offset = 0;
 		result = -ENOENT;
-		goto not_found;
+		goto out;
 	}
 	sBUG_ON(current_entry == NULL);
 
@@ -268,7 +279,8 @@ int cch_index_find(struct cch_index *index, uint64_t key,
 
 	PRINT_INFO("found 0x%lx", (long int) *out_value);
 	result = (*out_value == NULL) ? -ENOENT : 0;
-not_found:
+
+out:
 	TRACE_EXIT();
 	return result;
 }
@@ -307,7 +319,7 @@ int cch_index_insert(struct cch_index *index,
 	result = cch_index_create_path(index, key, &current_entry);
 
 	if (result)
-		goto not_found;
+		goto out;
 
 	sBUG_ON(current_entry == NULL);
 
@@ -319,15 +331,14 @@ int cch_index_insert(struct cch_index *index,
 		index, current_entry, record_offset, replace, value);
 
 	if (result)
-		goto insert_failure;
+		goto out;
 
 	if (new_value_offset)
 		*new_value_offset = record_offset;
 	if (new_index_entry)
 		*new_index_entry = current_entry;
 	result = 0;
-insert_failure:
-not_found:
+out:
 	TRACE_EXIT();
 	return result;
 }

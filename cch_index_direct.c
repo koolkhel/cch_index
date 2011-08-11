@@ -18,6 +18,7 @@ int cch_index_remove_direct(
 {
 	TRACE_ENTRY();
 
+	sBUG_ON(index == NULL);
 	sBUG_ON(entry == NULL);
 	/* FIXME locking */
 	sBUG_ON(!cch_index_entry_is_lowest(entry));
@@ -30,7 +31,7 @@ int cch_index_remove_direct(
 
 	TRACE_EXIT();
 
-	return -ENOENT;
+	return 0;
 }
 EXPORT_SYMBOL(cch_index_remove_direct);
 
@@ -72,7 +73,7 @@ int cch_index_insert_direct(
 		result = __cch_index_entry_create_next_sibling(
 			index, entry, &right_entry);
 		if (result)
-			goto failure;
+			goto out;
 
 		/* we should be sure the search wasn't in vain */
 		sBUG_ON(right_entry == entry);
@@ -86,7 +87,7 @@ int cch_index_insert_direct(
 		result = __cch_index_entry_find_prev_sibling(
 			index, entry, &right_entry);
 		if (result)
-			goto failure;
+			goto out;
 	}
 	/* we can insert right in this entry */
 	result = cch_index_entry_insert_direct(index, right_entry, offset,
@@ -94,14 +95,14 @@ int cch_index_insert_direct(
 	if (result) {
 		if (result == -EEXIST)
 			PRINT_INFO("attempt to replace entry");
-		goto failure;
+		goto out;
 	}
 	if (new_value_offset)
 		*new_value_offset = offset;
 	if (new_index_entry)
 		*new_index_entry = right_entry;
 
-failure:
+out:
 	TRACE_EXIT();
 
 	return result;
@@ -154,7 +155,7 @@ int cch_index_find_direct(
 		result = __cch_index_entry_find_next_sibling(
 			index, entry, &right_entry);
 		if (result)
-			goto failure;
+			goto out;
 
 		/* we should be sure the search wasn't in vain */
 		sBUG_ON(right_entry == entry);
@@ -168,7 +169,7 @@ int cch_index_find_direct(
 		result = __cch_index_entry_find_prev_sibling(
 			index, entry, &right_entry);
 		if (result)
-			goto failure;
+			goto out;
 	}
 
 	/* now, find */
@@ -182,7 +183,7 @@ int cch_index_find_direct(
 	if (next_index_entry)
 		*next_index_entry = right_entry;
 
-failure:
+out:
 	TRACE_EXIT();
 
 	return result;
@@ -265,7 +266,12 @@ void __cch_index_climb_to_first_capable_parent(
 			PRINT_ERROR("find_next_sibling: couldn't find entry %p "
 				"in its parent table: %p",
 				this_entry, parent_entry);
-			goto entry_not_found;
+			/*
+			 * We did not find it, which is error (index 
+			 * corruption), parents should always be connected 
+			 * with their children
+			 */
+			sBUG();
 		}
 		/* i now holds this_entry offset in parent_entry */
 
@@ -290,12 +296,6 @@ void __cch_index_climb_to_first_capable_parent(
 	TRACE_EXIT();
 
 	return;
-entry_not_found:
-	/*
-	 * We did not find it, which is error (index corruption),
-	 * parents should always be connected with their children
-	 */
-	sBUG();
 }
 
 /*
@@ -361,7 +361,7 @@ int __cch_index_entry_create_next_sibling(
 			if (result) {
 				PRINT_ERROR("couldn't create new entry while "
 					"doing next_sibling search\n");
-				goto create_entry_failure;
+				goto out;
 			}
 
 			sBUG_ON(this_entry == NULL);
@@ -378,7 +378,7 @@ int __cch_index_entry_create_next_sibling(
 /* result should be same level as input -- lowest one */
 	sBUG_ON(!cch_index_entry_is_lowest(*sibling));
 
-create_entry_failure:
+out:
 	TRACE_EXIT();
 
 	return result;
@@ -437,7 +437,7 @@ int __cch_index_entry_find_next_sibling(
 		PRINT_INFO("this level is %d", this_entry_level);
 		if (this_entry == NULL) {
 			result = -ENOENT;
-			goto not_found;
+			goto out;
 		}
 
 		parent_entry = this_entry;
@@ -446,7 +446,8 @@ int __cch_index_entry_find_next_sibling(
 
 	*sibling = this_entry;
 	result = 0;
-not_found:
+
+out:
 	TRACE_EXIT();
 
 	return result;
