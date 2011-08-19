@@ -42,6 +42,10 @@ struct cch_index_entry {
 	struct cch_index_entry *parent;
 	struct list_head index_lru_list_entry;
 
+	/* index of this entry in parent->v[] table for
+	 * leaf-to-root traversal */
+	int parent_offset;
+
 	union {
 		uint64_t backend_dev_offs;
 		struct cch_index_entry *entry;
@@ -65,6 +69,8 @@ struct cch_level_desc_entry {
 
 struct cch_index {
 	spinlock_t cch_index_value_lock;
+
+	spinlock_t index_lru_list_lock;
 	struct list_head index_lru_list;
 
 /* total number of levels -- levels + 1 for root + 1 for lowest */

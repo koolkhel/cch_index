@@ -115,9 +115,6 @@ int cch_index_create(
 	char slab_name_buf[CACHE_NAME_BUF_SIZE];
 
 	TRACE_ENTRY();
-	new_index = kzalloc(sizeof(struct cch_index) +
-			    (1 << root_bits) * sizeof(uint64_t),
-			    GFP_KERNEL);
 
 	new_index->start_save_fn  = cch_index_start_save_fn;
 	new_index->finish_save_fn = cch_index_finish_save_fn;
@@ -125,6 +122,10 @@ int cch_index_create(
 	new_index->value_free_fn  = cch_index_value_free_fn;
 	new_index->load_data_fn   = cch_index_load_data_fn;
 	new_index->entry_load_fn  = cch_index_load_entry_fn;
+
+	new_index = kzalloc(sizeof(struct cch_index) +
+			    (1 << root_bits) * sizeof(uint64_t),
+			    GFP_KERNEL);
 
 	if (new_index == NULL) {
 		PRINT_ERROR("vmalloc failed during index create");

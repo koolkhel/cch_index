@@ -226,7 +226,6 @@ void __cch_index_climb_to_first_capable_parent(
 	struct cch_index_entry *this_entry, *parent_entry;
 	int this_entry_level;
 	int parent_entry_size;
-	int i = 0;
 	int result = 0;
 
 	TRACE_ENTRY();
@@ -251,35 +250,14 @@ void __cch_index_climb_to_first_capable_parent(
 	while (!cch_index_entry_is_root(parent_entry)) {
 		parent_entry_size = cch_index_entry_size(index, parent_entry);
 		result = 0;
-		/* find this_entry in parent_entry's v[] at position "i" */
-		for (i = 0; i < parent_entry_size; i++) {
-			/* 1/size probability of success */
-			if (unlikely(parent_entry->v[i].entry == this_entry)) {
-				/* ok, we found it, fall out of "for" */
-				result = 0;
-				break;
-			}
-		}
-
-		if (unlikely(result == -ENOENT)) {
-			/* index corruption here */
-			PRINT_ERROR("find_next_sibling: couldn't find entry %p "
-				"in its parent table: %p",
-				this_entry, parent_entry);
-			/*
-			 * We did not find it, which is error (index 
-			 * corruption), parents should always be connected 
-			 * with their children
-			 */
-			sBUG();
-		}
+		
 		/* i now holds this_entry offset in parent_entry */
 
 		this_entry_level--;
 
 		TRACE(TRACE_DEBUG, "climb i is %d and size is %d",
-		      i, parent_entry_size);
-		if (i + 1 < parent_entry_size)
+		      this_entry->parent_offset, parent_entry_size);
+		if (this_entry->parent_offset + 1 < parent_entry_size)
 			break; /* we can use that */
 
 		this_entry = parent_entry;
@@ -287,11 +265,11 @@ void __cch_index_climb_to_first_capable_parent(
 	}
 
 	sBUG_ON(cch_index_entry_is_root(this_entry) && (this_entry_level != 0));
-	sBUG_ON(parent_entry->v[i].entry != this_entry);
+	sBUG_ON(parent_entry->v[this_entry->parent_offset].entry != this_entry);
 
 	*subtree_root = parent_entry;
 	*entry_level = this_entry_level;
-	*offset = i;
+	*offset = this_entry->parent_offset;
 
 	TRACE_EXIT();
 
@@ -428,7 +406,7 @@ int __cch_index_entry_find_next_sibling(
 /* all of this complexity is to check if "i + 1" is safe */
 	sibling_offset = i + 1;
 	/* now in this_entry we have entry we should climb down
-	 * at v[0] entries to get the right sibling
+	 * at v[0] entries to get th e right sibling
 	 */
 	while (this_entry_level < index->levels - 1) {
 		this_entry = parent_entry->v[sibling_offset].entry;

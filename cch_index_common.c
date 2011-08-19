@@ -25,6 +25,8 @@ void cch_index_destroy_lowest_level_entry(
 
 	TRACE_ENTRY();
 
+	// should we LOCK something?
+
 	sBUG_ON(entry == NULL);
 	sBUG_ON(POINTER_FREED(entry));
 	sBUG_ON(!cch_index_entry_is_lowest(entry));
@@ -38,6 +40,7 @@ void cch_index_destroy_lowest_level_entry(
 	}
 	TRACE(TRACE_DEBUG, "refcount is %d", entry->ref_cnt);
 	sBUG_ON(entry->ref_cnt != 0);
+
 	kmem_cache_free(index->low_level_kmem, entry);
 
 	TRACE_EXIT();
@@ -64,10 +67,9 @@ void cch_index_destroy_mid_level_entry(struct cch_index *index,
 
 	TRACE_ENTRY();
 
-	/* questionable, but works */
+	// should we LOCK anything?
 	sBUG_ON(entry == NULL);
 	sBUG_ON(POINTER_FREED(entry));
-
 
 	TRACE(TRACE_DEBUG, "destroy mid level %p, level %d, references %d",
 	      entry, level, entry->ref_cnt);
@@ -283,6 +285,7 @@ int cch_index_walk_path(
 	sBUG_ON(index == NULL);
 	sBUG_ON(found_entry == NULL);
 
+	// LOCK head?
 	current_entry = &index->head;
 	/* all levels except last one */
 	for (i = 0; i < index->levels - 1; i++) {
@@ -300,6 +303,8 @@ int cch_index_walk_path(
 			result = -ENOENT;
 			goto out;
 		}
+		// UNLOCK previous
+		// LOCK new
 	}
 
 	*found_entry = current_entry;
@@ -345,10 +350,14 @@ int cch_index_create_lowest_entry(
 		result = -ENOSPC;
 		goto out;
 	}
+
+	// LOCK parent, new_entry
 	parent->v[offset].entry = *new_entry;
 	(*new_entry)->parent = (struct cch_index_entry *)
 		(((unsigned long) parent) | ENTRY_LOWEST_ENTRY_BIT);
+	(*new_entry)->parent_offset = offset;
 	parent->ref_cnt++;
+	// UNLOCK parent, new_entry
 
 #ifdef CCH_INDEX_DEBUG
 	/* check real bounds of new object */
@@ -393,6 +402,7 @@ int cch_index_create_mid_entry(
 		goto out;
 	}
 	parent->v[offset].entry = *new_entry;
+	(*new_entry)->parent_offset = offset;
 	(*new_entry)->parent = parent;
 	parent->ref_cnt++;
 
@@ -516,7 +526,7 @@ void cch_index_entry_cleanup(
 	struct cch_index_entry *entry)
 {
 	struct cch_index_entry *parent, *current_entry;
-	int i, parent_entry_size, found_flag;
+	int parent_entry_size;
 
 	TRACE_ENTRY();
 
@@ -531,20 +541,12 @@ void cch_index_entry_cleanup(
 		parent = cch_index_entry_get_parent(current_entry);
 		parent_entry_size = cch_index_entry_size(index, current_entry);
 
-		found_flag = 0;
-		for (i = 0; i < parent_entry_size; i++) {
-			/* 1/parent_entry_size chance */
-			if (unlikely(parent->v[i].entry == current_entry)) {
-				found_flag = 1;
-				break;
-			}
-		}
-		sBUG_ON(found_flag == 0); /* index structure corruption */
-		TRACE(TRACE_DEBUG, "destroy entry %p with parent %p, i = %d",
-		      current_entry, parent, i);
-		cch_index_destroy_entry(index, current_entry);
-		parent->v[i].entry = NULL;
+		TRACE(TRACE_DEBUG, "destroy entry %p "
+		      "with parent %p, offset = %d",
+		      current_entry, parent, current_entry->parent_index);
+		parent->v[current_entry->parent_offset].entry = NULL;
 		parent->ref_cnt--;
+		cch_index_destroy_entry(index, current_entry);
 		current_entry = parent;
 	}
 

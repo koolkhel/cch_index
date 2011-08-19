@@ -130,6 +130,10 @@ do {							\
 		PRINT(KERN_INFO, "LEAVE %s", __func__);	\
 	} while (0)
 
+#define TRACE_EXIT_RES(res) do {					\
+		PRINT(KERN_INFO, "LEAVE %s result %d", __func__, res);	\
+	} while (0)
+
 #else /* #ifdef CCH_INDEX_DEBUG */
 
 #define TRACE(trace, format, args...) do {} while (0)
