@@ -342,7 +342,7 @@ int cch_index_create_lowest_entry(
 	*new_entry = kmem_cache_zalloc(index->low_level_kmem, GFP_KERNEL);
 	if (!*new_entry) {
 		PRINT_ERROR("low level alloc failure");
-		result = -ENOSPC;
+		result = -ENOMEM;
 		goto out;
 	}
 
@@ -392,7 +392,7 @@ int cch_index_create_mid_entry(
 	*new_entry = kmem_cache_zalloc(index->mid_level_kmem, GFP_KERNEL);
 	if (!*new_entry) {
 		PRINT_ERROR("mid level alloc failure");
-		result = -ENOSPC;
+		result = -ENOMEM;
 		goto out;
 	}
 

@@ -223,7 +223,7 @@ uint64_t cch_index_save(struct cch_index *index)
 	sBUG_ON(index == NULL);
 
 	TRACE_EXIT();
-	return -ENOSPC;
+	return -ENOMEM;
 }
 EXPORT_SYMBOL(cch_index_save);
 
@@ -234,7 +234,7 @@ int cch_index_load(struct cch_index *index, uint64_t start)
 	sBUG_ON(index == NULL);
 
 	TRACE_EXIT();
-	return -ENOSPC;
+	return -ENOMEM;
 }
 EXPORT_SYMBOL(cch_index_load);
 
@@ -375,7 +375,7 @@ int cch_index_shrink(struct cch_index_entry *index, int max_mem_kb)
 	sBUG_ON(index == 0);
 
 	TRACE_EXIT();
-	return -ENOSPC;
+	return -ENOMEM;
 }
 EXPORT_SYMBOL(cch_index_shrink);
 
@@ -386,6 +386,6 @@ int cch_index_restore(struct cch_index_entry *index)
 	sBUG_ON(index == 0);
 
 	TRACE_EXIT();
-	return -ENOSPC;
+	return -ENOMEM;
 }
 EXPORT_SYMBOL(cch_index_restore);
