@@ -6,6 +6,20 @@ cch_index_debug.h cch_index_direct.c cch_index_common.c cch_index_common.h
 
 MODULE_NAME := cchindex.ko
 
+EXTRA_CFLAGS := -g
+
+# EXTRA_CFLAGS += -DCCH_INDEX_DEBUG
+
+ifeq ($(KVER),)
+  ifeq ($(KDIR),)
+    KVER = $(shell uname -r)
+    KDIR := /lib/modules/$(KVER)/build
+  endif
+else
+  KDIR := /lib/modules/$(KVER)/build
+endif
+
+
 default: $(MODULE_NAME)
 
 release:
@@ -21,16 +35,18 @@ check:
 	linux/scripts/checkpatch.pl --emacs --file cch_index_direct.c
 	linux/scripts/checkpatch.pl --emacs --file load.c
 	linux/scripts/checkpatch.pl --emacs --file stubs.c
-EXTRA_CFLAGS:=-g
+
+clean:
+	rm -f *.o *.ko .*.cmd *.mod.c .*.d .depend Modules.symvers \
+                Module.symvers Module.markers modules.order
+	rm -rf .tmp_versions
 
 dump: $(MODULE_NAME)
 	objdump -DglS $(MODULE_NAME) > asm-source.txt
 
 $(MODULE_NAME): $(SOURCES)
-	make -C linux M=`pwd` modules
-
-clean:
-	make -C linux M=`pwd` clean
+	@echo $(KDIR)
+	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)
 
 load: $(MODULE_NAME)
 	sudo insmod $(MODULE_NAME)
@@ -47,3 +63,5 @@ deploy: $(MODULE_NAME) last-deploy
 
 gendocs:
 	doxygen doc.conf
+
+.PHONY: gendocs deploy unload load clean default dump clean release
