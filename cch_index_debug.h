@@ -140,6 +140,7 @@ do {							\
 
 #define TRACE_ENTRY() do {} while (0)
 #define TRACE_EXIT() do {} while (0)
+#define TRACE_EXIT_RES(result) do {} while (0)
 
 #define PRINT_BUFFER(message, buff, len)                            \
 do {                                                                \

@@ -255,7 +255,7 @@ int cch_index_create_path(
 	*lowest_entry = current_entry;
 
 out:
-	TRACE_EXIT();
+	TRACE_EXIT_RES(result);
 	return result;
 }
 
@@ -309,7 +309,7 @@ int cch_index_walk_path(
 	sBUG_ON(!cch_index_entry_is_lowest(*found_entry));
 
 out:
-	TRACE_EXIT();
+	TRACE_EXIT_RES(result);
 	return result;
 }
 
@@ -362,7 +362,7 @@ int cch_index_create_lowest_entry(
 #endif	
 
 out:
-	TRACE_EXIT();
+	TRACE_EXIT_RES(result);
 	return result;
 }
 
@@ -408,7 +408,7 @@ int cch_index_create_mid_entry(
 #endif
 
 out:
-	TRACE_EXIT();
+	TRACE_EXIT_RES(result);
 	return result;
 }
 
@@ -450,7 +450,7 @@ int cch_index_entry_create(
 	}
 
 out:
-	TRACE_EXIT();
+	TRACE_EXIT_RES(result);
 	return result;
 }
 
@@ -503,7 +503,7 @@ int cch_index_entry_insert_direct(
 	      "result of insert is %p", entry->v[offset].value);
 
 out:
-	TRACE_EXIT();
+	TRACE_EXIT_RES(result);
 	return result;
 }
 

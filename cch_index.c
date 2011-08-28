@@ -68,7 +68,7 @@ static int generate_level_descriptions(struct cch_index *index,
 	index->levels_desc[0].offset = next_level_offset;
 	index->root_level = 0; /* probably a bad idea */
 
-	TRACE_EXIT();
+	TRACE_EXIT_RES(result);
 	return result;
 }
 
@@ -190,7 +190,7 @@ int cch_index_create(
 	*out = new_index;
 
 out:
-	TRACE_EXIT();
+	TRACE_EXIT_RES(result);
 	return result;
 
 out_free_low_level_kmem:
@@ -283,7 +283,7 @@ int cch_index_find(struct cch_index *index, uint64_t key,
 	result = (*out_value == NULL) ? -ENOENT : 0;
 
 out:
-	TRACE_EXIT();
+	TRACE_EXIT_RES(result);
 	return result;
 }
 EXPORT_SYMBOL(cch_index_find);
@@ -341,7 +341,7 @@ int cch_index_insert(struct cch_index *index,
 	result = 0;
 
 out:
-	TRACE_EXIT();
+	TRACE_EXIT_RES(result);
 	return result;
 }
 EXPORT_SYMBOL(cch_index_insert);
@@ -369,7 +369,7 @@ int cch_index_remove(struct cch_index *index, uint64_t key)
 	result = 0;
 
 not_found:
-	TRACE_EXIT();
+	TRACE_EXIT_RES(result);
 	return result;
 }
 EXPORT_SYMBOL(cch_index_remove);

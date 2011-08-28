@@ -6,7 +6,6 @@
 #include "cch_index.h"
 #include "cch_index_debug.h"
 
-
 /*
  * Wrappers to index function to avoid repeating of error checking
  * in tests.
@@ -37,7 +36,7 @@ static int insert_to_index(struct cch_index *index,
 		       *new_value_offset);
 	}
 
-	TRACE_EXIT();
+	TRACE_EXIT_RES(result);
 	return result;
 }
 
@@ -87,7 +86,7 @@ static int search_index(struct cch_index *index, uint64_t key,
 	}
 
 failure:
-	TRACE_EXIT();
+	TRACE_EXIT_RES(result);
 	return result;
 }
 
@@ -128,7 +127,7 @@ static int index_remove_existing(struct cch_index *index, uint64_t key)
 	}
 
 failure:
-	TRACE_EXIT();	
+	TRACE_EXIT_RES(result);
 	return result;
 }
 
@@ -156,6 +155,8 @@ static int smoke_test(void)
 	int new_value_offset = 0;
 	void *found_value = NULL;
 	int i = 0;
+
+	TRACE_ENTRY();
 
 	PRINT_INFO("******** create index *************\n");
 	result = cch_index_create(
@@ -209,6 +210,7 @@ out_free_index:
 	PRINT_INFO("index destroy successful");
 
 out:
+	TRACE_EXIT_RES(result);
 	return result;
 }
 
@@ -319,7 +321,7 @@ out_free_index:
 	cch_index_destroy(index);
 
 out:
-	TRACE_EXIT();
+	TRACE_EXIT_RES(result);
 	return result;
 }
 
@@ -409,7 +411,7 @@ out_free_index:
 	cch_index_destroy(index);
 
 out:
-	TRACE_EXIT();
+	TRACE_EXIT_RES(result);
 	return result;
 }
 
@@ -446,7 +448,7 @@ static int __init reldata_index_init(void)
 	else
 		printk(KERN_INFO "failure\n");
 
-	TRACE_EXIT();
+	TRACE_EXIT_RES(result);
 	return result;
 }
 

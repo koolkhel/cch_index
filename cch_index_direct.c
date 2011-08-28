@@ -103,7 +103,7 @@ int cch_index_insert_direct(
 		*new_index_entry = right_entry;
 
 out:
-	TRACE_EXIT();
+	TRACE_EXIT_RES(result);
 	return result;
 }
 EXPORT_SYMBOL(cch_index_insert_direct);
@@ -183,7 +183,7 @@ int cch_index_find_direct(
 		*next_index_entry = right_entry;
 
 out:
-	TRACE_EXIT();
+	TRACE_EXIT_RES(result);
 	return result;
 }
 EXPORT_SYMBOL(cch_index_find_direct);
@@ -353,7 +353,7 @@ int __cch_index_entry_create_next_sibling(
 	sBUG_ON(!cch_index_entry_is_lowest(*sibling));
 
 out:
-	TRACE_EXIT();
+	TRACE_EXIT_RES(result);
 	return result;
 }
 
@@ -421,7 +421,7 @@ int __cch_index_entry_find_next_sibling(
 	result = 0;
 
 out:
-	TRACE_EXIT();
+	TRACE_EXIT_RES(result);
 	return result;
 }
 
@@ -446,6 +446,6 @@ int __cch_index_entry_find_prev_sibling(
 	sBUG_ON(entry->magic != CCH_INDEX_ENTRY_MAGIC);
 #endif
 
-	TRACE_EXIT();
+	TRACE_EXIT_RES(result);
 	return result;
 }
