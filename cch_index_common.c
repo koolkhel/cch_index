@@ -401,6 +401,7 @@ int cch_index_create_mid_entry(
 		result = -ENOSPC;
 		goto out;
 	}
+
 	parent->v[offset].entry = *new_entry;
 	(*new_entry)->parent_offset = offset;
 	(*new_entry)->parent = parent;

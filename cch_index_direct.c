@@ -97,6 +97,7 @@ int cch_index_insert_direct(
 			PRINT_INFO("attempt to replace entry");
 		goto out;
 	}
+
 	if (new_value_offset)
 		*new_value_offset = offset;
 	if (new_index_entry)
@@ -322,7 +323,7 @@ int __cch_index_entry_create_next_sibling(
 	TRACE(TRACE_DEBUG, "we can traverse down from %p at offset %d, "
 	      "level %d", parent_entry, sibling_offset, this_entry_level);
 
-/* all of this complexity is to check if "i + 1" is safe */
+	/* all of this complexity is to check if "i + 1" is safe */
 	/* now in this_entry we have entry we should climb down
 	 * at v[0] entries to get the right sibling
 	 */
@@ -335,7 +336,6 @@ int __cch_index_entry_create_next_sibling(
 			result = cch_index_entry_create(
 				index, parent_entry, &this_entry,
 				this_entry_level, sibling_offset);
-
 			if (result) {
 				PRINT_ERROR("couldn't create new entry while "
 					"doing next_sibling search\n");
@@ -351,9 +351,9 @@ int __cch_index_entry_create_next_sibling(
 
 	*sibling = this_entry;
 
-/* this function did effectively nothing if this bug happens */
+	/* this function did effectively nothing if this bug happens */
 	sBUG_ON(*sibling == entry);
-/* result should be same level as input -- lowest one */
+	/* result should be same level as input -- lowest one */
 	sBUG_ON(!cch_index_entry_is_lowest(*sibling));
 
 out:
@@ -403,7 +403,7 @@ int __cch_index_entry_find_next_sibling(
 	      "we can traverse down from %p at offset %d, level %d",
 	      parent_entry, i + 1, this_entry_level);
 
-/* all of this complexity is to check if "i + 1" is safe */
+	/* all of this complexity is to check if "i + 1" is safe */
 	sibling_offset = i + 1;
 	/* now in this_entry we have entry we should climb down
 	 * at v[0] entries to get th e right sibling

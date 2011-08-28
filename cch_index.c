@@ -119,7 +119,6 @@ int cch_index_create(
 	new_index = kzalloc(sizeof(struct cch_index) +
 			    (1 << root_bits) * sizeof(uint64_t),
 			    GFP_KERNEL);
-
 	if (new_index == NULL) {
 		PRINT_ERROR("vmalloc failed during index create");
 		result = -ENOMEM;
@@ -138,7 +137,6 @@ int cch_index_create(
 	new_index->levels_desc = kzalloc(
 		new_index->levels * sizeof(struct cch_level_desc_entry),
 		GFP_KERNEL);
-
 	if (new_index->levels_desc == NULL) {
 		result = -ENOMEM;
 		goto out_free_index;
@@ -150,9 +148,11 @@ int cch_index_create(
 		PRINT_ERROR("error creating caches\n");
 		goto out_free_index;
 	}
+
 #ifdef CCH_INDEX_DEBUG
 	show_index_description(new_index);
 #endif
+
 	snprintf(slab_name_buf, CACHE_NAME_BUF_SIZE,
 		 "cch_index_low_level_%p", new_index);
 	/* FIXME unique index name */
@@ -161,8 +161,7 @@ int cch_index_create(
 		sizeof(new_index->head.v[0]) +
 		sizeof(struct cch_index_entry),
 		CCH_INDEX_LOW_LEVEL_ALIGN, 0, NULL);
-
-	if (!new_index->low_level_kmem) {
+	if (new_index->low_level_kmem == NULL) {
 		result = -ENOMEM;
 		goto out_free_descriptions;
 	}
@@ -177,11 +176,11 @@ int cch_index_create(
 		sizeof(new_index->head.v[0]) +
 		sizeof(struct cch_index_entry),
 		CCH_INDEX_MID_LEVEL_ALIGN, 0, NULL);
-
 	if (!new_index->mid_level_kmem) {
 		result = -ENOMEM;
 		goto out_free_low_level_kmem;
 	}
+
 	PRINT_INFO("cch_index_mid_level object size %d",
 		   kmem_cache_size(new_index->mid_level_kmem));
 
@@ -268,6 +267,7 @@ int cch_index_find(struct cch_index *index, uint64_t key,
 		result = -ENOENT;
 		goto out;
 	}
+
 	sBUG_ON(current_entry == NULL);
 
 	lowest_offset = EXTRACT_LOWEST_OFFSET(index, key);
@@ -330,7 +330,6 @@ int cch_index_insert(struct cch_index *index,
 	/* save value to index */
 	result = cch_index_entry_insert_direct(
 		index, current_entry, record_offset, replace, value);
-
 	if (result)
 		goto out;
 

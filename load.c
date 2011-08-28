@@ -18,15 +18,17 @@ static int insert_to_index(struct cch_index *index,
 			   int *new_value_offset)
 {
 	int result;
+
 	TRACE_ENTRY();
+
 	PRINT_INFO("index insert start");
+
 	result = cch_index_insert(index,
 				  /* key */ key,
 				  /* value */ value,
 				  /* replace */ false,
 				  new_index_entry,
 				  new_value_offset);
-
 	if (result != 0) {
 		PRINT_ERROR("index insert failure, result %d\n", result);
 	} else if (new_index_entry != NULL && new_value_offset != NULL) {
@@ -34,6 +36,7 @@ static int insert_to_index(struct cch_index *index,
 		       (unsigned long) *new_index_entry,
 		       *new_value_offset);
 	}
+
 	TRACE_EXIT();
 	return result;
 }
@@ -45,20 +48,26 @@ static int search_index(struct cch_index *index, uint64_t key,
 			void *reference)
 {
 	int result;
+
 	TRACE_ENTRY();
+
 	sBUG_ON(found_value == NULL);
+
 	result = cch_index_find(index, key, found_value,
 				new_index_entry, new_value_offset);
 	if (result != 0) {
 		PRINT_INFO("index search failure, result %d\n", result);
 		goto failure;
 	}
+
 	sBUG_ON(*found_value == NULL);
+
 	/* we did find it, right ? */
 	if (new_index_entry != NULL) {
 		/* then we should have the right entry */
 		sBUG_ON(*new_index_entry == NULL);
 	}
+
 	if (new_value_offset != NULL && new_index_entry != NULL) {
 		PRINT_INFO("index search success at address 0x%lx, "
 			   "offset 0x%x, with value 0x%lx\n",
@@ -69,12 +78,14 @@ static int search_index(struct cch_index *index, uint64_t key,
 		PRINT_INFO("index search success with value %lx\n",
 			   (unsigned long) *found_value);
 	}
+
 	if (reference != NULL) {
 		if (*found_value == reference)
 			PRINT_INFO("found exact match\n");
 		else
 			PRINT_INFO("found wrong match\n");
 	}
+
 failure:
 	TRACE_EXIT();
 	return result;
@@ -86,10 +97,11 @@ static int index_remove_existing(struct cch_index *index, uint64_t key)
 	void *found_value;
 
 	TRACE_ENTRY();
+
 	PRINT_INFO("remove_existing: step 1: find the entry\n");
+
 	result = search_index(index, key, &found_value,
 			      NULL, NULL, NULL);
-
 	if (result) {
 		PRINT_ERROR("there is no key %llx in index", key);
 		goto failure;
@@ -97,7 +109,6 @@ static int index_remove_existing(struct cch_index *index, uint64_t key)
 
 	PRINT_INFO("remove_existing: step 2: remove entry by key\n");
 	result = cch_index_remove(index, key);
-
 	if (result != 0)
 		PRINT_INFO("index remove failure, result %d\n", result);
 	else
@@ -107,7 +118,6 @@ static int index_remove_existing(struct cch_index *index, uint64_t key)
 	PRINT_INFO("remove_existing: step 3: find entry again, should fail\n");
 	result = search_index(index, key, &found_value,
 			      NULL, NULL, NULL);
-
 	if (result == 0) {
 		PRINT_ERROR("index remove did not remove it\n");
 		PRINT_ERROR("found %lx\n", (unsigned long) found_value);
@@ -116,8 +126,9 @@ static int index_remove_existing(struct cch_index *index, uint64_t key)
 		PRINT_INFO("index remove is actually successful\n");
 		result = 0; /* this is expected */
 	}
-	TRACE_EXIT();
+
 failure:
+	TRACE_EXIT();	
 	return result;
 }
 
@@ -159,10 +170,9 @@ static int smoke_test(void)
 		cch_index_load_data_fn,
 		cch_index_load_entry_fn,
 		&index);
-
 	if (result != 0) {
 		PRINT_INFO("index creation failure, result %d\n", result);
-		goto creation_failure;
+		goto out;
 	}
 
 	PRINT_INFO("******** insert index entries ********\n");
@@ -172,7 +182,7 @@ static int smoke_test(void)
 					 &new_index_entry, &new_value_offset);
 
 		if (result)
-			goto insert_failure;
+			goto out_free_index;
 	}
 
 	PRINT_INFO("********** find the index entry by key *********\n");
@@ -182,24 +192,23 @@ static int smoke_test(void)
 				      test_values[i].value);
 
 		if (result)
-			goto search_failure;
+			goto out_free_index;
 	}
 
-search_failure:
 	PRINT_INFO("****** remove entry assuming it exists ***********\n");
 	for (i = 0; i < ARRAY_SIZE(test_values); i++) {
 		result = index_remove_existing(index, test_values[i].key);
 
 		if (result)
-			goto remove_failure;
+			goto out_free_index;
 	}
 
-insert_failure:
-remove_failure:
+out_free_index:
 	PRINT_INFO("********** attempt to destroy the index **********");
 	cch_index_destroy(index);
 	PRINT_INFO("index destroy successful");
-creation_failure:
+
+out:
 	return result;
 }
 
@@ -214,7 +223,11 @@ static int direct_test(void)
 	int first_offset;
 	void *cmp_value;
 	int i = 0;
+
+	TRACE_ENTRY();
+
 	PRINT_INFO("******** *_direct functions test  *************\n");
+
 	result = cch_index_create(/* levels */    6,
 				  /* total bits */      64,
 				  /* root_bits */ 8,
@@ -228,7 +241,7 @@ static int direct_test(void)
 				  &index);
 	if (result != 0) {
 		PRINT_ERROR("index creation failure, result %d", result);
-		goto creation_failure;
+		goto out;
 	}
 
 	insert_value = (void *) 0xBEEFDEADUL;
@@ -236,10 +249,12 @@ static int direct_test(void)
 		&first_index_entry, &first_offset);
 	if (result) {
 		PRINT_ERROR("index insert failure, result %d", result);
-		goto insert_failure;
+		goto out_free_index;
 	}
+
 	index_entry = first_index_entry;
 	offset = first_offset;
+
 #define NUM_TEST_RECORDS 4098
 	/* --------------------------------------------------- */
 	/* now we should insert entries one by one without key */
@@ -249,14 +264,16 @@ static int direct_test(void)
 		PRINT_INFO("inserting %d th record at offset %d",
 			   i, offset);
 		insert_value = (void *) (((unsigned long) insert_value) + 1);
+
 		result = cch_index_insert_direct(index, index_entry,
 			offset, false, insert_value,
 			&new_index_entry, &new_value_offset);
 		if (result) {
 			PRINT_ERROR("couldn't insert direct, result %d",
 				result);
-			goto insert_failure;
+			goto out_free_index;
 		}
+
 		PRINT_INFO("inserted to entry %p with offset %d",
 			   new_index_entry, new_value_offset);
 
@@ -272,33 +289,37 @@ static int direct_test(void)
 	offset = first_offset;
 	index_entry = first_index_entry;
 	cmp_value = (void *) 0xBEEFDEADUL;
+
 	for (i = 0; i < NUM_TEST_RECORDS; i++) {
 		offset++;
 		cmp_value = (void *) (((unsigned long) cmp_value) + 1);
+
 		result = cch_index_find_direct(index, index_entry,
 			offset, &insert_value,
 			&new_index_entry, &new_value_offset);
-
 		if (result) {
 			PRINT_ERROR("error find direct");
-			goto search_failure;
+			goto out_free_index;
 		}
 
 		if (cmp_value != insert_value) {
 			PRINT_ERROR("got %p instead of %p",
 				insert_value, cmp_value);
-			goto search_failure;
+			goto out_free_index;
 		}
+
 		index_entry = new_index_entry;
 		offset = new_value_offset;
 	}
 
 	PRINT_ERROR("find_direct test successful");
-search_failure:
-insert_failure:
+
+out_free_index:
 	PRINT_ERROR("%d records were successful", i);
 	cch_index_destroy(index);
-creation_failure:
+
+out:
+	TRACE_EXIT();
 	return result;
 }
 
@@ -308,6 +329,8 @@ static int remove_cleanup_test(void)
 	struct cch_index *index;
 	void *insert_value, *found_value;
 	int i;
+
+	TRACE_ENTRY();
 
 	result = cch_index_create(/* levels */    6,
 				  /* total bits */      64,
@@ -322,78 +345,79 @@ static int remove_cleanup_test(void)
 				  &index);
 	if (result != 0) {
 		PRINT_ERROR("index creation failure, result %d", result);
-		goto failure;
+		goto out;
 	}
 
 	insert_value = (void *) 0xBEEFDEADUL;
 	result = insert_to_index(index, 0x0, insert_value, NULL, NULL);
 	if (result) {
 		PRINT_ERROR("index insert failure, result %d", result);
-		goto failure;
+		goto out_free_index;
 	}
 
 	result = search_index(index, 0x0, &found_value,
 		NULL, NULL, insert_value);
-
 	if (result) {
 		PRINT_ERROR("couldn't find record that is just inserted");
-		goto failure;
+		goto out_free_index;
 	}
 
 	insert_value = (void *) 0xBEEFDEAFUL;
 	result = insert_to_index(index, 0x1, insert_value, NULL, NULL);
 	if (result) {
 		PRINT_ERROR("index insert failure, result %d", result);
-		goto failure;
+		goto out_free_index;
 	}
 
 	result = search_index(index, 0x1, &found_value,
 		NULL, NULL, insert_value);
-
 	if (result) {
 		PRINT_ERROR("couldn't find record that is just inserted");
-		goto failure;
+		goto out_free_index;
 	}
 
 	result = cch_index_remove(index, 0x0);
 	if (result) {
 		PRINT_ERROR("couldn't remove record");
-		goto failure;
+		goto out_free_index;
 	}
 
 	if (index->head.ref_cnt != 1) {
 		PRINT_ERROR("ref_cnt is prematurely zero");
-		goto failure;
+		goto out_free_index;
 	}
 
 	result = cch_index_remove(index, 0x1);
 	if (result) {
 		PRINT_ERROR("couldn't remove record");
-		goto failure;
+		goto out_free_index;
 	}
 
 	if (index->head.ref_cnt != 0) {
 		PRINT_ERROR("after removal root head ref_cnt non-zero");
-		goto failure;
+		goto out_free_index;
 	}
 
 	for (i = 0; i < cch_index_entry_size(index, &index->head); i++) {
 		if (index->head.v[i].entry != NULL) {
 			PRINT_ERROR("non null record remain");
-			goto failure;
+			goto out_free_index;
 		}
 	}
 
-failure:
+out_free_index:
 	cch_index_destroy(index);
 
+out:
+	TRACE_EXIT();
 	return result;
 }
 
 static int __init reldata_index_init(void)
 {
 	int result = 0;
-	PRINT_INFO("hello, world!");
+
+	TRACE_ENTRY();
 
 	/* check if index can hold some records at all */
 	result = smoke_test();
@@ -418,9 +442,10 @@ static int __init reldata_index_init(void)
 
 	/* need to print regardless of CCH_INDEX_DEBUG */
 	if (result == 0)
-		printk(KERN_INFO "all ok");
+		printk(KERN_INFO "all ok\n");
 	else
-		printk(KERN_INFO "failure");
+		printk(KERN_INFO "failure\n");
+
 	return result;
 }
 
@@ -430,6 +455,7 @@ static void reldata_index_shutdown(void)
 }
 
 MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Yury Luneff");
 
 module_init(reldata_index_init);
 module_exit(reldata_index_shutdown);
