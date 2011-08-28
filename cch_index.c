@@ -111,7 +111,7 @@ int cch_index_create(
 {
 	int result;
 	struct cch_index *new_index = NULL;
-	#define CACHE_NAME_BUF_SIZE 30
+#define CACHE_NAME_BUF_SIZE 30
 	char slab_name_buf[CACHE_NAME_BUF_SIZE];
 
 	TRACE_ENTRY();

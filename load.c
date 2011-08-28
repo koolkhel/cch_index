@@ -240,7 +240,7 @@ static int direct_test(void)
 	}
 	index_entry = first_index_entry;
 	offset = first_offset;
-	#define NUM_TEST_RECORDS 4098
+#define NUM_TEST_RECORDS 4098
 	/* --------------------------------------------------- */
 	/* now we should insert entries one by one without key */
 	/* --------------------------------------------------- */
