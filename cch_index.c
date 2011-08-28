@@ -116,13 +116,6 @@ int cch_index_create(
 
 	TRACE_ENTRY();
 
-	new_index->start_save_fn  = cch_index_start_save_fn;
-	new_index->finish_save_fn = cch_index_finish_save_fn;
-	new_index->entry_save_fn  = cch_index_save_fn;
-	new_index->value_free_fn  = cch_index_value_free_fn;
-	new_index->load_data_fn   = cch_index_load_data_fn;
-	new_index->entry_load_fn  = cch_index_load_entry_fn;
-
 	new_index = kzalloc(sizeof(struct cch_index) +
 			    (1 << root_bits) * sizeof(uint64_t),
 			    GFP_KERNEL);
@@ -132,6 +125,13 @@ int cch_index_create(
 		result = -ENOMEM;
 		goto out;
 	}
+
+	new_index->start_save_fn  = cch_index_start_save_fn;
+	new_index->finish_save_fn = cch_index_finish_save_fn;
+	new_index->entry_save_fn  = cch_index_save_fn;
+	new_index->value_free_fn  = cch_index_value_free_fn;
+	new_index->load_data_fn   = cch_index_load_data_fn;
+	new_index->entry_load_fn  = cch_index_load_entry_fn;
 
 	/* root + levels + lowest level */
 	new_index->levels = levels + 2;
