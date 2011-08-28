@@ -11,6 +11,8 @@
 
 #define DEBUG
 
+static atomic_t _index_seq_n = ATOMIC_INIT(0);
+
 /**
  * Generate level description structure with given parameters.
  * BUG if requested configuration requires non-equal sizes
@@ -111,6 +113,7 @@ int cch_index_create(
 	struct cch_index *new_index = NULL;
 #define CACHE_NAME_BUF_SIZE 30
 	char slab_name_buf[CACHE_NAME_BUF_SIZE];
+	int index_seq_n = 0;
 
 	TRACE_ENTRY();
 
@@ -151,8 +154,10 @@ int cch_index_create(
 	show_index_description(new_index);
 #endif
 
+	index_seq_n = atomic_add_return(1, &_index_seq_n)/
+
 	snprintf(slab_name_buf, CACHE_NAME_BUF_SIZE,
-		 "cch_index_low_level_%p", new_index);
+		 "cch_index_low_level_%d", index_seq_n);
 	/* FIXME unique index name */
 	new_index->low_level_kmem = kmem_cache_create(slab_name_buf,
 		new_index->levels_desc[new_index->lowest_level].size *
@@ -168,7 +173,7 @@ int cch_index_create(
 		   kmem_cache_size(new_index->low_level_kmem));
 
 	snprintf(slab_name_buf, CACHE_NAME_BUF_SIZE,
-		 "cch_index_mid_level_%p", new_index);
+		 "cch_index_mid_level_%d", index_seq_n);
 	new_index->mid_level_kmem = kmem_cache_create(slab_name_buf,
 		new_index->levels_desc[new_index->mid_level].size *
 		sizeof(new_index->head.v[0]) +
@@ -183,6 +188,7 @@ int cch_index_create(
 		   kmem_cache_size(new_index->mid_level_kmem));
 
 	*out = new_index;
+
 out:
 	TRACE_EXIT();
 	return result;
