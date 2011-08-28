@@ -1,0 +1,4 @@
+open rd
+cd /home/yury/mod
+mput *
+close
