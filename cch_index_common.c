@@ -44,7 +44,6 @@ void cch_index_destroy_lowest_level_entry(
 	kmem_cache_free(index->low_level_kmem, entry);
 
 	TRACE_EXIT();
-
 	return;
 }
 
@@ -115,7 +114,6 @@ void cch_index_destroy_mid_level_entry(struct cch_index *index,
 	kmem_cache_free(index->mid_level_kmem, entry);
 
 	TRACE_EXIT();
-
 	return;
 }
 
@@ -145,7 +143,6 @@ void cch_index_destroy_entry(
 	 */
 
 	TRACE_EXIT();
-
 	return;
 }
 
@@ -173,7 +170,6 @@ void cch_index_entry_remove_value(
 	entry->ref_cnt--;
 
 	TRACE_EXIT();
-
 	return;
 }
 
@@ -204,7 +200,6 @@ void cch_index_destroy_root_entry(struct cch_index *index)
 	sBUG_ON(index->head.ref_cnt != 0);
 
 	TRACE_EXIT();
-
 	return;
 }
 
@@ -258,6 +253,7 @@ int cch_index_create_path(
 	}
 
 	*lowest_entry = current_entry;
+
 out:
 	TRACE_EXIT();
 	return result;
@@ -314,7 +310,6 @@ int cch_index_walk_path(
 
 out:
 	TRACE_EXIT();
-
 	return result;
 }
 
@@ -368,7 +363,6 @@ int cch_index_create_lowest_entry(
 
 out:
 	TRACE_EXIT();
-
 	return result;
 }
 
@@ -415,7 +409,6 @@ int cch_index_create_mid_entry(
 
 out:
 	TRACE_EXIT();
-
 	return result;
 }
 
@@ -458,7 +451,6 @@ int cch_index_entry_create(
 
 out:
 	TRACE_EXIT();
-
 	return result;
 }
 
@@ -509,9 +501,9 @@ int cch_index_entry_insert_direct(
 
 	TRACE(TRACE_DEBUG,
 	      "result of insert is %p", entry->v[offset].value);
+
 out:
 	TRACE_EXIT();
-
 	return result;
 }
 
@@ -553,6 +545,5 @@ void cch_index_entry_cleanup(
 
 done:
 	TRACE_EXIT();
-
 	return;
 }

@@ -446,6 +446,7 @@ static int __init reldata_index_init(void)
 	else
 		printk(KERN_INFO "failure\n");
 
+	TRACE_EXIT();
 	return result;
 }
 

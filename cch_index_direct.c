@@ -30,7 +30,6 @@ int cch_index_remove_direct(
 	cch_index_entry_remove_value(index, entry, offset);
 
 	TRACE_EXIT();
-
 	return 0;
 }
 EXPORT_SYMBOL(cch_index_remove_direct);
@@ -105,7 +104,6 @@ int cch_index_insert_direct(
 
 out:
 	TRACE_EXIT();
-
 	return result;
 }
 EXPORT_SYMBOL(cch_index_insert_direct);
@@ -186,7 +184,6 @@ int cch_index_find_direct(
 
 out:
 	TRACE_EXIT();
-
 	return result;
 }
 EXPORT_SYMBOL(cch_index_find_direct);
@@ -273,7 +270,6 @@ void __cch_index_climb_to_first_capable_parent(
 	*offset = this_entry->parent_offset;
 
 	TRACE_EXIT();
-
 	return;
 }
 
@@ -358,7 +354,6 @@ int __cch_index_entry_create_next_sibling(
 
 out:
 	TRACE_EXIT();
-
 	return result;
 }
 
@@ -427,7 +422,6 @@ int __cch_index_entry_find_next_sibling(
 
 out:
 	TRACE_EXIT();
-
 	return result;
 }
 
@@ -453,6 +447,5 @@ int __cch_index_entry_find_prev_sibling(
 #endif
 
 	TRACE_EXIT();
-
 	return result;
 }

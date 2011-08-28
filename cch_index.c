@@ -67,7 +67,6 @@ static int generate_level_descriptions(struct cch_index *index,
 	index->root_level = 0; /* probably a bad idea */
 
 	TRACE_EXIT();
-
 	return result;
 }
 
@@ -91,7 +90,6 @@ void show_index_description(struct cch_index *index)
 	}
 
 	TRACE_EXIT();
-
 	return;
 }
 #endif
@@ -187,7 +185,6 @@ int cch_index_create(
 	*out = new_index;
 out:
 	TRACE_EXIT();
-
 	return result;
 
 out_free_low_level_kmem:
@@ -215,7 +212,6 @@ void cch_index_destroy(struct cch_index *index)
 	kfree(index);
 
 	TRACE_EXIT();
-
 	return;
 }
 EXPORT_SYMBOL(cch_index_destroy);
@@ -227,7 +223,6 @@ uint64_t cch_index_save(struct cch_index *index)
 	sBUG_ON(index == NULL);
 
 	TRACE_EXIT();
-
 	return -ENOSPC;
 }
 EXPORT_SYMBOL(cch_index_save);
@@ -239,7 +234,6 @@ int cch_index_load(struct cch_index *index, uint64_t start)
 	sBUG_ON(index == NULL);
 
 	TRACE_EXIT();
-
 	return -ENOSPC;
 }
 EXPORT_SYMBOL(cch_index_load);
@@ -253,6 +247,7 @@ int cch_index_find(struct cch_index *index, uint64_t key,
 	int lowest_offset = 0;
 
 	TRACE_ENTRY();
+
 	sBUG_ON(index == NULL);
 	/* we need to dump the result somewhere */
 	sBUG_ON(out_value == NULL);
@@ -338,6 +333,7 @@ int cch_index_insert(struct cch_index *index,
 	if (new_index_entry)
 		*new_index_entry = current_entry;
 	result = 0;
+
 out:
 	TRACE_EXIT();
 	return result;
@@ -365,6 +361,7 @@ int cch_index_remove(struct cch_index *index, uint64_t key)
 	cch_index_entry_cleanup(index, current_entry);
 
 	result = 0;
+
 not_found:
 	TRACE_EXIT();
 	return result;
@@ -374,7 +371,9 @@ EXPORT_SYMBOL(cch_index_remove);
 int cch_index_shrink(struct cch_index_entry *index, int max_mem_kb)
 {
 	TRACE_ENTRY();
+
 	sBUG_ON(index == 0);
+
 	TRACE_EXIT();
 	return -ENOSPC;
 }
@@ -383,7 +382,9 @@ EXPORT_SYMBOL(cch_index_shrink);
 int cch_index_restore(struct cch_index_entry *index)
 {
 	TRACE_ENTRY();
+
 	sBUG_ON(index == 0);
+
 	TRACE_EXIT();
 	return -ENOSPC;
 }
