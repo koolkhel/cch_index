@@ -73,14 +73,14 @@ struct cch_index {
 	spinlock_t index_lru_list_lock;
 	struct list_head index_lru_list;
 
-/* total number of levels -- levels + 1 for root + 1 for lowest */
+	/* total number of levels -- levels + 1 for root + 1 for lowest */
 	int levels;
 
 	int root_level;
 	int lowest_level;
 	int mid_level;
 
-/* array, describing each level of index */
+	/* array, describing each level of index */
 	struct cch_level_desc_entry *levels_desc;
 
 	struct kmem_cache *mid_level_kmem;
