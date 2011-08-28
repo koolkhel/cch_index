@@ -51,7 +51,7 @@ static int generate_level_descriptions(struct cch_index *index,
 
 	next_level_offset = 0;
 
-/* walking backwards, lower levels will be thicker */
+	/* walking backwards, lower levels will be thicker */
 	for (i = index->levels - 1; i > 0; i--) {
 		index->levels_desc[i].bits = mid_level_size;
 
@@ -157,8 +157,8 @@ int cch_index_create(
 		 "cch_index_low_level_%p", new_index);
 	/* FIXME unique index name */
 	new_index->low_level_kmem = kmem_cache_create(slab_name_buf,
-		new_index->levels_desc[new_index->lowest_level].size
-		* sizeof(new_index->head.v[0]) +
+		new_index->levels_desc[new_index->lowest_level].size *
+		sizeof(new_index->head.v[0]) +
 		sizeof(struct cch_index_entry),
 		CCH_INDEX_LOW_LEVEL_ALIGN, 0, NULL);
 
@@ -173,9 +173,9 @@ int cch_index_create(
 	snprintf(slab_name_buf, CACHE_NAME_BUF_SIZE,
 		 "cch_index_mid_level_%p", new_index);
 	new_index->mid_level_kmem = kmem_cache_create(slab_name_buf,
-		new_index->levels_desc[new_index->mid_level].size
-		* sizeof(new_index->head.v[0])
-		+ sizeof(struct cch_index_entry),
+		new_index->levels_desc[new_index->mid_level].size *
+		sizeof(new_index->head.v[0]) +
+		sizeof(struct cch_index_entry),
 		CCH_INDEX_MID_LEVEL_ALIGN, 0, NULL);
 
 	if (!new_index->mid_level_kmem) {
