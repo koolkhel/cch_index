@@ -154,7 +154,7 @@ int cch_index_create(
 	show_index_description(new_index);
 #endif
 
-	index_seq_n = atomic_add_return(1, &_index_seq_n)/
+	index_seq_n = atomic_inc_return(&_index_seq_n)/
 
 	snprintf(slab_name_buf, CACHE_NAME_BUF_SIZE,
 		 "cch_index_low_level_%d", index_seq_n);
