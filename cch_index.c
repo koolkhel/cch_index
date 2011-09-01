@@ -1241,7 +1241,7 @@ int cch_index_find(struct cch_index *index, uint64_t key,
 	/* we need to dump the result somewhere */
 	sBUG_ON(out_value == NULL);
 
-	mutex_lock(&index->cch_index_value_mutex);
+	// mutex_lock(&index->cch_index_value_mutex);
 	result = cch_index_walk_path(index, key, &current_entry);
 	if (result) {
 		*out_value = 0;
@@ -1264,7 +1264,7 @@ int cch_index_find(struct cch_index *index, uint64_t key,
 		*value_offset = lowest_offset;
 
 	cch_index_value_lock(*out_value);
-	mutex_unlock(&index->cch_index_value_mutex);
+	// mutex_unlock(&index->cch_index_value_mutex);
 
 	PRINT_INFO("found 0x%lx", (long int) *out_value);
 	result = (*out_value == NULL) ? -ENOENT : 0;

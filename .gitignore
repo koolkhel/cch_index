@@ -8,3 +8,7 @@ modules.order
 docs/
 linux
 last-deploy
+GPATH
+GTAGS
+GRTAGS
+GSYMS
