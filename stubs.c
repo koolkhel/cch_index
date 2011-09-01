@@ -4,6 +4,8 @@
 #include "cch_index_debug.h"
 #include "cch_index.h"
 
+
+
 /**
  * This file contains all functions marked as "out of scope of this project"
  * for index to be able to use them
@@ -13,7 +15,9 @@ int cch_index_check_lock(void *value)
 {
 	/* stub implementation */
 	TRACE_ENTRY();
+
 	PRINT_INFO("check lock on %lx", (unsigned long) value);
+
 	TRACE_EXIT();
 	return 0;
 }
@@ -21,7 +25,9 @@ int cch_index_check_lock(void *value)
 int cch_index_value_lock(void *value)
 {
 	TRACE_ENTRY();
+
 	PRINT_INFO("value lock on %lx", (unsigned long) value);
+
 	TRACE_EXIT();
 	return 0;
 }

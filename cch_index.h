@@ -66,7 +66,7 @@ struct cch_level_desc_entry {
 };
 
 struct cch_index {
-	spinlock_t cch_index_value_lock;
+	struct mutex cch_index_value_mutex;
 
 	spinlock_t index_lru_list_lock;
 	struct list_head index_lru_list;

@@ -1,4 +1,4 @@
 open rd
 cd /home/yury/mod
-mput *
+mput Makefile cchindex.ko
 close

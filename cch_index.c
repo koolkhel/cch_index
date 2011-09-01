@@ -9,7 +9,9 @@
 #include "cch_index_debug.h"
 #include "cch_index_common.h"
 
-#define DEBUG
+#ifdef CCH_INDEX_DEBUG
+static int trace_flag = TRACE_DEBUG;
+#endif
 
 static atomic_t _index_seq_n = ATOMIC_INIT(0);
 
@@ -133,6 +135,8 @@ int cch_index_create(
 	new_index->load_data_fn   = cch_index_load_data_fn;
 	new_index->entry_load_fn  = cch_index_load_entry_fn;
 
+	mutex_init(&new_index->cch_index_value_mutex);
+
 	/* root + levels + lowest level */
 	new_index->levels = levels + 2;
 	new_index->levels_desc = kzalloc(
@@ -154,7 +158,7 @@ int cch_index_create(
 	show_index_description(new_index);
 #endif
 
-	index_seq_n = atomic_inc_return(&_index_seq_n)/
+	index_seq_n = atomic_inc_return(&_index_seq_n);
 
 	snprintf(slab_name_buf, CACHE_NAME_BUF_SIZE,
 		 "cch_index_low_level_%d", index_seq_n);
@@ -258,6 +262,7 @@ int cch_index_find(struct cch_index *index, uint64_t key,
 	/* we need to dump the result somewhere */
 	sBUG_ON(out_value == NULL);
 
+	mutex_lock(&index->cch_index_value_mutex);
 	result = cch_index_walk_path(index, key, &current_entry);
 	if (result) {
 		*out_value = 0;
@@ -278,6 +283,9 @@ int cch_index_find(struct cch_index *index, uint64_t key,
 		*index_entry = current_entry;
 	if (value_offset)
 		*value_offset = lowest_offset;
+
+	cch_index_value_lock(*out_value);
+	mutex_unlock(&index->cch_index_value_mutex);
 
 	PRINT_INFO("found 0x%lx", (long int) *out_value);
 	result = (*out_value == NULL) ? -ENOENT : 0;
