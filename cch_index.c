@@ -1239,15 +1239,15 @@ int cch_index_find_direct(
 
 	*out_value = right_entry->v[offset].value;
 	
-	if (out_value)
+	if (*out_value) {
 		cch_index_value_lock(*out_value);
-	else
-		result = -ENOENT;
 
-	if (value_offset)
-		*value_offset = offset;
-	if (next_index_entry)
-		*next_index_entry = right_entry;
+		if (value_offset)
+			*value_offset = offset;
+		if (next_index_entry)
+			*next_index_entry = right_entry;
+	} else
+		result = -ENOENT;
 
 	cch_index_entry_lru_update(index, entry);
 
