@@ -160,7 +160,7 @@ static inline int cch_index_entry_is_root(struct cch_index_entry *entry)
 }
 
 /* entry contains actual values */
-static inline int cch_index_entry_is_lowest(struct cch_index_entry *entry)
+static inline int cch_index_entry_is_lowest_level(struct cch_index_entry *entry)
 {
 	return (int) ((unsigned long) entry->parent) & ENTRY_LOWEST_ENTRY_BIT;
 }
@@ -168,7 +168,7 @@ static inline int cch_index_entry_is_lowest(struct cch_index_entry *entry)
 static inline int cch_index_entry_is_mid_level(struct cch_index_entry *entry)
 {
 	return !(cch_index_entry_is_root(entry) ||
-		 cch_index_entry_is_lowest(entry));
+		 cch_index_entry_is_lowest_level(entry));
 }
 
 /* locked for load/unload */
@@ -231,7 +231,7 @@ static inline int cch_index_entry_size(struct cch_index *index,
 	struct cch_index_entry *entry)
 {
 	int size;
-	if (cch_index_entry_is_lowest(entry))
+	if (cch_index_entry_is_lowest_level(entry))
 		size = index->levels_desc[index->lowest_level].size;
 	else if (cch_index_entry_is_root(entry))
 		size = index->levels_desc[index->root_level].size;

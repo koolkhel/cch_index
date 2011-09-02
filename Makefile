@@ -8,7 +8,7 @@ MODULE_NAME := cchindex.ko
 
 EXTRA_CFLAGS := -g
 
-EXTRA_CFLAGS += -DCCH_INDEX_DEBUG
+# EXTRA_CFLAGS += -DCCH_INDEX_DEBUG
 
 ifeq ($(KVER),)
   ifeq ($(KDIR),)

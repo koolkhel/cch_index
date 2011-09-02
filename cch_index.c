@@ -231,7 +231,7 @@ void cch_index_destroy_lowest_level_entry(
 
 	sBUG_ON(entry == NULL);
 	sBUG_ON(POINTER_FREED(entry));
-	sBUG_ON(!cch_index_entry_is_lowest(entry));
+	sBUG_ON(!cch_index_entry_is_lowest_level(entry));
 
 	current_size = cch_index_entry_size(index, entry);
 	for (i = 0; i < current_size; i++) {
@@ -282,7 +282,7 @@ void cch_index_destroy_mid_level_entry(struct cch_index *index,
 	      entry, level, entry->ref_cnt);
 
 	if (!cch_index_entry_is_mid_level(entry)) {
-		if (cch_index_entry_is_lowest(entry)) {
+		if (cch_index_entry_is_lowest_level(entry)) {
 			PRINT_INFO("entry is lowest");
 			sBUG();
 		} else if (cch_index_entry_is_root(entry)) {
@@ -303,7 +303,7 @@ void cch_index_destroy_mid_level_entry(struct cch_index *index,
 		/* how can an entry here be already free? */
 		sBUG_ON(POINTER_FREED(entry->v[i].entry));
 
-		if (cch_index_entry_is_lowest(entry->v[i].entry)) {
+		if (cch_index_entry_is_lowest_level(entry->v[i].entry)) {
 			PRINT_INFO("destroying lowest level 0x%x", i);
 			cch_index_destroy_lowest_level_entry(index,
 				entry->v[i].entry);
@@ -318,8 +318,6 @@ void cch_index_destroy_mid_level_entry(struct cch_index *index,
 
 	PRINT_INFO("refcount is %d", entry->ref_cnt);
 	sBUG_ON(entry->ref_cnt != 0);
-
-	cch_index_entry_lru_remove(index, entry);
 
 	kmem_cache_free(index->mid_level_kmem, entry);
 
@@ -340,7 +338,7 @@ void cch_index_destroy_entry(
 	sBUG_ON(index == NULL);
 	sBUG_ON(entry == NULL);
 
-	if (cch_index_entry_is_lowest(entry))
+	if (cch_index_entry_is_lowest_level(entry))
 		cch_index_destroy_lowest_level_entry(index, entry);
 	else if (cch_index_entry_is_mid_level(entry))
 		cch_index_destroy_mid_level_entry(index, entry, 1);
@@ -376,7 +374,7 @@ void __cch_index_entry_remove_value(
 
 	sBUG_ON(index == NULL);
 	sBUG_ON(entry == NULL);
-	sBUG_ON(!cch_index_entry_is_lowest(entry));
+	sBUG_ON(!cch_index_entry_is_lowest_level(entry));
 
 	TRACE(TRACE_DEBUG, "removing at offset 0x%x", offset);
 	entry->v[offset].value = NULL;
@@ -474,6 +472,7 @@ int cch_index_create_lowest_entry(
 		index->lowest_level_entry_size, index->total_bytes);
 
 	/* LRU */
+	INIT_LIST_HEAD(&((*new_entry)->index_lru_list_entry));
 	spin_lock_irqsave(&(index->index_lru_list_lock), flags);
 	list_add_tail(&((*new_entry)->index_lru_list_entry),
 		      &index->index_lru_list);
@@ -530,12 +529,6 @@ int cch_index_create_mid_entry(
 	index->total_bytes += index->mid_level_entry_size;
 	cch_index_on_new_entry_alloc(index,
 		index->mid_level_entry_size, index->total_bytes);
-
-	/* LRU */
-	spin_lock_irqsave(&(index->index_lru_list_lock), flags);
-	list_add_tail(&((*new_entry)->index_lru_list_entry),
-		      &index->index_lru_list);
-	spin_unlock_irqrestore(&index->index_lru_list_lock, flags);
 
 out:
 	TRACE_EXIT_RES(result);
@@ -689,7 +682,7 @@ int __cch_index_walk_path(
 	*found_entry = current_entry;
 
 	sBUG_ON(*found_entry == NULL);
-	sBUG_ON(!cch_index_entry_is_lowest(*found_entry));
+	sBUG_ON(!cch_index_entry_is_lowest_level(*found_entry));
 
 out:
 	TRACE_EXIT_RES(result);
@@ -719,7 +712,7 @@ int __cch_index_entry_insert_direct(
 
 	sBUG_ON(index == NULL);
 	sBUG_ON(entry == NULL);
-	sBUG_ON(!cch_index_entry_is_lowest(entry));
+	sBUG_ON(!cch_index_entry_is_lowest_level(entry));
 	sBUG_ON(offset >= cch_index_entry_size(index, entry));
 	sBUG_ON(offset < 0);
 
@@ -838,7 +831,7 @@ void __cch_index_climb_to_first_capable_parent(
 
 	sBUG_ON(index == NULL);
 	sBUG_ON(entry == NULL);
-	sBUG_ON(!cch_index_entry_is_lowest(entry));
+	sBUG_ON(!cch_index_entry_is_lowest_level(entry));
 	sBUG_ON(entry_level == NULL);
 	sBUG_ON(subtree_root == NULL);
 	sBUG_ON(offset == NULL);
@@ -906,7 +899,7 @@ int __cch_index_entry_create_next_sibling(
 	sBUG_ON(index == NULL);
 	sBUG_ON(entry == NULL);
 	sBUG_ON(sibling == NULL);
-	sBUG_ON(!cch_index_entry_is_lowest(entry));
+	sBUG_ON(!cch_index_entry_is_lowest_level(entry));
 #ifdef CCH_INDEX_DEBUG
 	sBUG_ON(entry->magic != CCH_INDEX_ENTRY_MAGIC);
 #endif
@@ -958,7 +951,7 @@ int __cch_index_entry_create_next_sibling(
 	/* this function did effectively nothing if this bug happens */
 	sBUG_ON(*sibling == entry);
 	/* result should be same level as input -- lowest one */
-	sBUG_ON(!cch_index_entry_is_lowest(*sibling));
+	sBUG_ON(!cch_index_entry_is_lowest_level(*sibling));
 
 out:
 	TRACE_EXIT_RES(result);
@@ -988,7 +981,7 @@ int __cch_index_entry_find_next_sibling(
 	sBUG_ON(index == NULL);
 	sBUG_ON(entry == NULL);
 	sBUG_ON(sibling == NULL);
-	sBUG_ON(!cch_index_entry_is_lowest(entry));
+	sBUG_ON(!cch_index_entry_is_lowest_level(entry));
 
 	/*
 	 * The function consists of two parts:
@@ -1068,7 +1061,7 @@ int cch_index_remove_direct(
 	sBUG_ON(index == NULL);
 	sBUG_ON(entry == NULL);
 	/* FIXME locking */
-	sBUG_ON(!cch_index_entry_is_lowest(entry));
+	sBUG_ON(!cch_index_entry_is_lowest_level(entry));
 
 	mutex_lock(&index->cch_index_value_mutex);
 
@@ -1103,7 +1096,7 @@ int cch_index_insert_direct(
 	sBUG_ON(index == NULL);
 	sBUG_ON(entry == NULL);
 	/* we can insert entry only to lowest entry */
-	sBUG_ON(!cch_index_entry_is_lowest(entry));
+	sBUG_ON(!cch_index_entry_is_lowest_level(entry));
 
 #ifdef CCH_INDEX_DEBUG
 	sBUG_ON(entry->magic != CCH_INDEX_ENTRY_MAGIC);
@@ -1184,7 +1177,7 @@ int cch_index_find_direct(
 	sBUG_ON(index == NULL);
 	sBUG_ON(entry == NULL);
 	/* starting point is lowest entry */
-	sBUG_ON(!cch_index_entry_is_lowest(entry));
+	sBUG_ON(!cch_index_entry_is_lowest_level(entry));
 	sBUG_ON(out_value == NULL);
 	sBUG_ON(*out_value == NULL);
 #ifdef CCH_INDEX_DEBUG

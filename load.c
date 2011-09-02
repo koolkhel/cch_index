@@ -224,7 +224,7 @@ static int direct_test(void)
 	int new_value_offset, offset;
 	int first_offset;
 	void *cmp_value;
-	int i = 0;
+	int i = 0, j = 0;
 
 	TRACE_ENTRY();
 
@@ -315,6 +315,20 @@ static int direct_test(void)
 	}
 
 	PRINT_ERROR("find_direct test successful");
+
+	i = 0;
+	list_for_each_entry(index_entry, &(index->index_lru_list),
+			    index_lru_list_entry) {
+		i++;
+	}
+
+	j = (NUM_TEST_RECORDS /
+	     index->levels_desc[index->lowest_level].size + 1);
+	if (i != j) {
+		result = 1;
+		printk(KERN_ERR "too many lowest level entries created:");
+		printk(KERN_ERR "%d while should be %d\n", i, j);
+	}
 
 out_free_index:
 	PRINT_ERROR("%d records were successful", i);
@@ -417,36 +431,38 @@ out:
 
 static int __init reldata_index_init(void)
 {
-	int result = 0;
+	int result = 0, total_result = 0;
 
 	TRACE_ENTRY();
 
+	printk(KERN_INFO "start\n");
+
 	/* check if index can hold some records at all */
-	result = smoke_test();
-	if (result != 0)
-		PRINT_ERROR("smoke test failure");
+	total_result |= (result = smoke_test());
+	if (result == 0)
+		printk(KERN_INFO "smoke ok\n");
 	else
-		PRINT_ERROR("smoke test OK");
+		printk(KERN_INFO "smoke failure\n");
 
 	/* check 4k records using direct access */
-	//result = direct_test();
-	if (result)
-		PRINT_ERROR("direct test failure");
+	total_result |= (result = direct_test());
+	if (result == 0)
+		printk(KERN_INFO "direct ok\n");
 	else
-		PRINT_ERROR("direct test success");
+		printk(KERN_INFO "direct failure\n");
 
 	/* demonstrate that reference counting works */
-	//result = remove_cleanup_test();
-	if (result != 0)
-		PRINT_ERROR("remove cleanup test failure");
+	total_result |= (result = remove_cleanup_test());
+	if (result == 0)
+		printk(KERN_INFO "cleanup ok\n");
 	else
-		PRINT_ERROR("remove cleanup test success");
+		printk(KERN_INFO "cleanup failure\n");
 
 	/* need to print regardless of CCH_INDEX_DEBUG */
-	if (result == 0)
+	if (total_result == 0)
 		printk(KERN_INFO "all ok\n");
 	else
-		printk(KERN_INFO "failure\n");
+		printk(KERN_INFO "all failure\n");
 
 	TRACE_EXIT_RES(result);
 	return result;
