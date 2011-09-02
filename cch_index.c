@@ -67,7 +67,6 @@ static int generate_level_descriptions(struct cch_index *index,
 	index->levels_desc[0].bits = root_bits;
 	index->levels_desc[0].size = 1UL << root_bits;
 	index->levels_desc[0].offset = next_level_offset;
-	index->root_level = 0; /* probably a bad idea */
 
 	TRACE_EXIT_RES(result);
 	return result;
@@ -136,6 +135,8 @@ int cch_index_create(
 
 	mutex_init(&new_index->cch_index_value_mutex);
 
+	new_index->total_bytes = 0;
+
 	/* root + levels + lowest level */
 	new_index->levels = levels + 2;
 	new_index->levels_desc = kzalloc(
@@ -159,28 +160,30 @@ int cch_index_create(
 
 	index_seq_n = atomic_inc_return(&_index_seq_n);
 
+	new_index->lowest_level_entry_size =
+		new_index->levels_desc[new_index->lowest_level].size *
+		sizeof(new_index->head.v[0]) + sizeof(struct cch_index_entry);
 	snprintf(slab_name_buf, CACHE_NAME_BUF_SIZE,
 		 "cch_index_low_level_%d", index_seq_n);
 	/* FIXME unique index name */
-	new_index->low_level_kmem = kmem_cache_create(slab_name_buf,
-		new_index->levels_desc[new_index->lowest_level].size *
-		sizeof(new_index->head.v[0]) +
-		sizeof(struct cch_index_entry),
+	new_index->lowest_level_kmem = kmem_cache_create(slab_name_buf,
+		new_index->lowest_level_entry_size,
 		CCH_INDEX_LOW_LEVEL_ALIGN, 0, NULL);
-	if (new_index->low_level_kmem == NULL) {
+	if (new_index->lowest_level_kmem == NULL) {
 		result = -ENOMEM;
 		goto out_free_descriptions;
 	}
 
 	PRINT_INFO("cch_index_low_level object size %d",
-		   kmem_cache_size(new_index->low_level_kmem));
+		   kmem_cache_size(new_index->lowest_level_kmem));
 
+	new_index->mid_level_entry_size =
+		new_index->levels_desc[new_index->mid_level].size *
+		sizeof(new_index->head.v[0]) + sizeof(struct cch_index_entry);
 	snprintf(slab_name_buf, CACHE_NAME_BUF_SIZE,
 		 "cch_index_mid_level_%d", index_seq_n);
 	new_index->mid_level_kmem = kmem_cache_create(slab_name_buf,
-		new_index->levels_desc[new_index->mid_level].size *
-		sizeof(new_index->head.v[0]) +
-		sizeof(struct cch_index_entry),
+		new_index->mid_level_entry_size,
 		CCH_INDEX_MID_LEVEL_ALIGN, 0, NULL);
 	if (!new_index->mid_level_kmem) {
 		result = -ENOMEM;
@@ -197,7 +200,7 @@ out:
 	return result;
 
 out_free_low_level_kmem:
-	kmem_cache_destroy(new_index->low_level_kmem);
+	kmem_cache_destroy(new_index->lowest_level_kmem);
 out_free_descriptions:
 	kfree(new_index->levels_desc);
 out_free_index:
@@ -237,7 +240,11 @@ void cch_index_destroy_lowest_level_entry(
 	TRACE(TRACE_DEBUG, "refcount is %d", entry->ref_cnt);
 	sBUG_ON(entry->ref_cnt != 0);
 
-	kmem_cache_free(index->low_level_kmem, entry);
+	kmem_cache_free(index->lowest_level_kmem, entry);
+
+	index->total_bytes -= index->lowest_level_entry_size;
+	cch_index_on_entry_free(index,
+		index->lowest_level_entry_size, index->total_bytes);
 
 	TRACE_EXIT();
 	return;
@@ -308,6 +315,10 @@ void cch_index_destroy_mid_level_entry(struct cch_index *index,
 	sBUG_ON(entry->ref_cnt != 0);
 
 	kmem_cache_free(index->mid_level_kmem, entry);
+
+	index->total_bytes -= index->mid_level_entry_size;
+	cch_index_on_entry_free(index,
+		index->mid_level_entry_size, index->total_bytes);
 
 	TRACE_EXIT();
 	return;
@@ -427,7 +438,7 @@ int cch_index_create_lowest_entry(
 	sBUG_ON(index == NULL);
 	sBUG_ON(parent == NULL);
 
-	*new_entry = kmem_cache_zalloc(index->low_level_kmem, GFP_KERNEL);
+	*new_entry = kmem_cache_zalloc(index->lowest_level_kmem, GFP_KERNEL);
 	if (!*new_entry) {
 		PRINT_ERROR("low level alloc failure");
 		result = -ENOMEM;
@@ -448,6 +459,10 @@ int cch_index_create_lowest_entry(
 		sBUG_ON((*new_entry)->v[i].entry != NULL);
 	(*new_entry)->magic = CCH_INDEX_ENTRY_MAGIC;
 #endif	
+
+	index->total_bytes += index->lowest_level_entry_size;
+	cch_index_on_new_entry_alloc(index,
+		index->lowest_level_entry_size, index->total_bytes);
 
 out:
 	TRACE_EXIT_RES(result);
@@ -494,6 +509,10 @@ int cch_index_create_mid_entry(
 		sBUG_ON((*new_entry)->v[i].entry != NULL);
 	(*new_entry)->magic = CCH_INDEX_ENTRY_MAGIC;
 #endif
+
+	index->total_bytes += index->mid_level_entry_size;
+	cch_index_on_new_entry_alloc(index,
+		index->mid_level_entry_size, index->total_bytes);
 
 out:
 	TRACE_EXIT_RES(result);
@@ -1221,7 +1240,7 @@ void cch_index_destroy(struct cch_index *index)
 	/* FIXME check usage */
 	/* FIXME locking */
 	cch_index_destroy_root_entry(index);
-	kmem_cache_destroy(index->low_level_kmem);
+	kmem_cache_destroy(index->lowest_level_kmem);
 	kmem_cache_destroy(index->mid_level_kmem);
 	kfree(index->levels_desc);
 	kfree(index);

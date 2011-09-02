@@ -74,15 +74,23 @@ struct cch_index {
 	/* total number of levels -- levels + 1 for root + 1 for lowest */
 	int levels;
 
+	/* we need this for determining entry size. These are
+	 * indices of levels in levels_dec */
 	int root_level;
 	int lowest_level;
 	int mid_level;
+
+	/* size of each kmem_cache_zalloc */
+	int lowest_level_entry_size;
+	int mid_level_entry_size;
 
 	/* array, describing each level of index */
 	struct cch_level_desc_entry *levels_desc;
 
 	struct kmem_cache *mid_level_kmem;
-	struct kmem_cache *low_level_kmem;
+	struct kmem_cache *lowest_level_kmem;
+
+	int total_bytes;
 
 	cch_index_start_save_t start_save_fn;
 	cch_index_finish_save_t finish_save_fn;
@@ -110,10 +118,10 @@ struct cch_index {
 extern int cch_index_check_lock(void *value);
 extern int cch_index_value_lock(void *value);
 extern int cch_index_value_unlock(void *value);
-extern void cch_index_on_new_entry_alloc(struct cch_index_entry *index,
-					 int inc_size, int new_size);
-extern void cch_index_on_entry_free(struct cch_index_entry *index,
-				    int dec_size, int new_size);
+extern void cch_index_on_new_entry_alloc(
+	struct cch_index *index, int inc_size, int new_size);
+extern void cch_index_on_entry_free(
+	struct cch_index *index, int dec_size, int new_size);
 extern void cch_index_alloc_new_cluster(void);
 extern void cch_index_free_cluster(void);
 
@@ -293,8 +301,6 @@ int cch_index_remove_direct(
 
 /* push excessive data to block device, reach max_mem_kb memory usage */
 int cch_index_shrink(struct cch_index_entry *index, int max_mem_kb);
-
-/* FIXME too little info in spec */
 
 /* restore from disk */
 int cch_index_restore(struct cch_index_entry *index);
