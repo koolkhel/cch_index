@@ -346,8 +346,10 @@ void cch_index_destroy_entry(
  * Remove record from given entry at given offset,
  * decreasing reference count and, possibly, freeing all
  * unused index entries on this path.
+ * 
+ * Supposed to be called under cch_index_value_mutex.
  */
-void cch_index_entry_remove_value(
+void __cch_index_entry_remove_value(
 	struct cch_index *index,
 	struct cch_index_entry *entry,
 	int offset)
@@ -546,7 +548,7 @@ out:
  * @arg key
  * @arg lowest_etnry
  */
-int cch_index_create_path(
+int __cch_index_create_path(
 	struct cch_index *index,
 	uint64_t key,
 	struct cch_index_entry **lowest_entry)
@@ -599,11 +601,13 @@ out:
 /**
  * Try to walk index using @arg key, returning lowest level entry,
  * if it's found, -ENOENT if not
+ * 
+ * Should be called under cch_index_value_mutex.
  *
  * @arg key
  * @arg found_entry
  */
-int cch_index_walk_path(
+int __cch_index_walk_path(
 	struct cch_index *index,
 	uint64_t key,
 	struct cch_index_entry **found_entry)
@@ -660,7 +664,7 @@ out:
  * @arg offset insert to entry->v[offset]
  * @arg value value to insert
  */
-int cch_index_entry_insert_direct(
+int __cch_index_entry_insert_direct(
 	struct cch_index *index,
 	struct cch_index_entry *entry,
 	int offset,
@@ -712,7 +716,7 @@ out:
  * @arg index
  * @arg entry
  */
-void cch_index_entry_cleanup(
+void __cch_index_entry_cleanup(
 	struct cch_index *index,
 	struct cch_index_entry *entry)
 {
@@ -1020,11 +1024,15 @@ int cch_index_remove_direct(
 	/* FIXME locking */
 	sBUG_ON(!cch_index_entry_is_lowest(entry));
 
+	mutex_lock(&index->cch_index_value_mutex);
+
 	/*
 	 * doesn't seem like we should leap to next entry
-	 * on offset overflow
+	 * on offset overflow. Or should we?
 	 */
-	cch_index_entry_remove_value(index, entry, offset);
+	__cch_index_entry_remove_value(index, entry, offset);
+
+	mutex_unlock(&index->cch_index_value_mutex);
 
 	TRACE_EXIT();
 	return 0;
@@ -1050,14 +1058,19 @@ int cch_index_insert_direct(
 	sBUG_ON(entry == NULL);
 	/* we can insert entry only to lowest entry */
 	sBUG_ON(!cch_index_entry_is_lowest(entry));
+
 #ifdef CCH_INDEX_DEBUG
 	sBUG_ON(entry->magic != CCH_INDEX_ENTRY_MAGIC);
 #endif
+
+	mutex_lock(&index->cch_index_value_mutex);
+	
 	right_entry = entry;
 	lowest_entry_size = cch_index_entry_size(index, entry);
 
 	TRACE(TRACE_DEBUG, "insert_direct: offset: %d, size: %d\n",
 	      offset, lowest_entry_size);
+
 	/* offset overleaps to next index entry */
 	if (unlikely(offset >= lowest_entry_size)) {
 		/* forward traversing */
@@ -1069,7 +1082,7 @@ int cch_index_insert_direct(
 		result = __cch_index_entry_create_next_sibling(
 			index, entry, &right_entry);
 		if (result)
-			goto out;
+			goto out_unlock;
 
 		/* we should be sure the search wasn't in vain */
 		sBUG_ON(right_entry == entry);
@@ -1083,15 +1096,15 @@ int cch_index_insert_direct(
 		result = __cch_index_entry_find_prev_sibling(
 			index, entry, &right_entry);
 		if (result)
-			goto out;
+			goto out_unlock;
 	}
 	/* we can insert right in this entry */
-	result = cch_index_entry_insert_direct(index, right_entry, offset,
+	result = __cch_index_entry_insert_direct(index, right_entry, offset,
 		replace, value);
 	if (result) {
 		if (result == -EEXIST)
 			PRINT_INFO("attempt to replace entry");
-		goto out;
+		goto out_unlock;
 	}
 
 	if (new_value_offset)
@@ -1099,7 +1112,9 @@ int cch_index_insert_direct(
 	if (new_index_entry)
 		*new_index_entry = right_entry;
 
-out:
+out_unlock:
+	mutex_unlock(&index->cch_index_value_mutex);
+
 	TRACE_EXIT_RES(result);
 	return result;
 }
@@ -1127,6 +1142,9 @@ int cch_index_find_direct(
 #ifdef CCH_INDEX_DEBUG
 	sBUG_ON(entry->magic != CCH_INDEX_ENTRY_MAGIC);
 #endif
+
+	mutex_lock(&index->cch_index_value_mutex);
+
 	/* logic is same as in insert_direct, but we must not create
 	 * any siblings as we do in insert_direct:
 	 *
@@ -1135,6 +1153,7 @@ int cch_index_find_direct(
 	/* 2. if not, seek for index_entry that can hold remainder of offset */
 
 	/* 3. with known entry check if it holds value and return it */
+
 	right_entry = entry;
 	lowest_entry_size = cch_index_entry_size(index, entry);
 	TRACE(TRACE_DEBUG, "reading entry %p sized %d with offset %d",
@@ -1151,7 +1170,7 @@ int cch_index_find_direct(
 		result = __cch_index_entry_find_next_sibling(
 			index, entry, &right_entry);
 		if (result)
-			goto out;
+			goto out_unlock;
 
 		/* we should be sure the search wasn't in vain */
 		sBUG_ON(right_entry == entry);
@@ -1165,21 +1184,26 @@ int cch_index_find_direct(
 		result = __cch_index_entry_find_prev_sibling(
 			index, entry, &right_entry);
 		if (result)
-			goto out;
+			goto out_unlock;
 	}
 
 	/* now, find */
 
 	*out_value = right_entry->v[offset].value;
-
-	if (out_value == NULL)
+	
+	if (out_value)
+		cch_index_value_lock(*out_value);
+	else
 		result = -ENOENT;
+
 	if (value_offset)
 		*value_offset = offset;
 	if (next_index_entry)
 		*next_index_entry = right_entry;
 
-out:
+out_unlock:
+	mutex_unlock(&index->cch_index_value_mutex);
+
 	TRACE_EXIT_RES(result);
 	return result;
 }
@@ -1241,8 +1265,9 @@ int cch_index_find(struct cch_index *index, uint64_t key,
 	/* we need to dump the result somewhere */
 	sBUG_ON(out_value == NULL);
 
-	// mutex_lock(&index->cch_index_value_mutex);
-	result = cch_index_walk_path(index, key, &current_entry);
+	mutex_lock(&index->cch_index_value_mutex);
+
+	result = __cch_index_walk_path(index, key, &current_entry);
 	if (result) {
 		*out_value = 0;
 		if (index_entry)
@@ -1250,7 +1275,7 @@ int cch_index_find(struct cch_index *index, uint64_t key,
 		if (value_offset)
 			*value_offset = 0;
 		result = -ENOENT;
-		goto out;
+		goto out_unlock;
 	}
 
 	sBUG_ON(current_entry == NULL);
@@ -1258,18 +1283,23 @@ int cch_index_find(struct cch_index *index, uint64_t key,
 	lowest_offset = EXTRACT_LOWEST_OFFSET(index, key);
 	PRINT_INFO("offset is 0x%x", lowest_offset);
 	*out_value = current_entry->v[lowest_offset].value;
+
+	if (out_value)
+		cch_index_value_lock(*out_value);
+	else
+		result = -ENOENT;
+
 	if (index_entry)
 		*index_entry = current_entry;
 	if (value_offset)
 		*value_offset = lowest_offset;
 
-	cch_index_value_lock(*out_value);
-	// mutex_unlock(&index->cch_index_value_mutex);
-
 	PRINT_INFO("found 0x%lx", (long int) *out_value);
 	result = (*out_value == NULL) ? -ENOENT : 0;
 
-out:
+out_unlock:
+	mutex_unlock(&index->cch_index_value_mutex);
+
 	TRACE_EXIT_RES(result);
 	return result;
 }
@@ -1297,6 +1327,8 @@ int cch_index_insert(struct cch_index *index,
 	TRACE_ENTRY();
 	sBUG_ON(index == NULL);
 
+	mutex_lock(&index->cch_index_value_mutex);	
+
 #ifdef CCH_INDEX_DEBUG
 	PRINT_INFO("key is 0x%.8llx", key);
 	for (i = 0; i < index->levels; i++) {
@@ -1305,10 +1337,10 @@ int cch_index_insert(struct cch_index *index,
 	}
 #endif
 
-	result = cch_index_create_path(index, key, &current_entry);
+	result = __cch_index_create_path(index, key, &current_entry);
 
 	if (result)
-		goto out;
+		goto out_unlock;
 
 	sBUG_ON(current_entry == NULL);
 
@@ -1316,18 +1348,19 @@ int cch_index_insert(struct cch_index *index,
 	PRINT_INFO("computed offset is %d", record_offset);
 
 	/* save value to index */
-	result = cch_index_entry_insert_direct(
+	result = __cch_index_entry_insert_direct(
 		index, current_entry, record_offset, replace, value);
 	if (result)
-		goto out;
+		goto out_unlock;
 
 	if (new_value_offset)
 		*new_value_offset = record_offset;
 	if (new_index_entry)
 		*new_index_entry = current_entry;
-	result = 0;
 
-out:
+out_unlock:
+	mutex_unlock(&index->cch_index_value_mutex);	
+	
 	TRACE_EXIT_RES(result);
 	return result;
 }
@@ -1342,20 +1375,22 @@ int cch_index_remove(struct cch_index *index, uint64_t key)
 	TRACE_ENTRY();
 	sBUG_ON(index == NULL);
 
-	result = cch_index_walk_path(index, key, &current_entry);
+	mutex_lock(&index->cch_index_value_mutex);
+
+	result = __cch_index_walk_path(index, key, &current_entry);
 	if (result)
-		goto not_found;
+		goto out_unlock;
 
 	lowest_offset = EXTRACT_LOWEST_OFFSET(index, key);
 
-	cch_index_entry_remove_value(index, current_entry, lowest_offset);
+	__cch_index_entry_remove_value(index, current_entry, lowest_offset);
 
 	/* and now we check if some entries should be cleaned up */
-	cch_index_entry_cleanup(index, current_entry);
+	__cch_index_entry_cleanup(index, current_entry);
 
-	result = 0;
-
-not_found:
+out_unlock:
+	mutex_unlock(&index->cch_index_value_mutex);
+	
 	TRACE_EXIT_RES(result);
 	return result;
 }
