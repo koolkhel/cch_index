@@ -1,7 +1,8 @@
 #include <linux/bug.h>
-#include <linux/slab.h>
+#include <linux/list.h>
 #include <linux/module.h>
 #include <linux/errno.h>
+#include <linux/slab.h>
 
 #define LOG_PREFIX "cch_index"
 
@@ -134,6 +135,8 @@ int cch_index_create(
 	new_index->entry_load_fn  = cch_index_load_entry_fn;
 
 	mutex_init(&new_index->cch_index_value_mutex);
+	spin_lock_init(&new_index->index_lru_list_lock);
+	INIT_LIST_HEAD(&new_index->index_lru_list);
 
 	new_index->total_bytes = 0;
 
@@ -240,6 +243,8 @@ void cch_index_destroy_lowest_level_entry(
 	TRACE(TRACE_DEBUG, "refcount is %d", entry->ref_cnt);
 	sBUG_ON(entry->ref_cnt != 0);
 
+	cch_index_entry_lru_remove(index, entry);
+
 	kmem_cache_free(index->lowest_level_kmem, entry);
 
 	index->total_bytes -= index->lowest_level_entry_size;
@@ -313,6 +318,8 @@ void cch_index_destroy_mid_level_entry(struct cch_index *index,
 
 	PRINT_INFO("refcount is %d", entry->ref_cnt);
 	sBUG_ON(entry->ref_cnt != 0);
+
+	cch_index_entry_lru_remove(index, entry);
 
 	kmem_cache_free(index->mid_level_kmem, entry);
 
@@ -429,6 +436,7 @@ int cch_index_create_lowest_entry(
 	int offset)
 {
 	int result = 0;
+	unsigned long flags;
 #ifdef CCH_INDEX_DEBUG
 	int i = 0;
 #endif
@@ -460,9 +468,16 @@ int cch_index_create_lowest_entry(
 	(*new_entry)->magic = CCH_INDEX_ENTRY_MAGIC;
 #endif	
 
+	/* memory accounting */
 	index->total_bytes += index->lowest_level_entry_size;
 	cch_index_on_new_entry_alloc(index,
 		index->lowest_level_entry_size, index->total_bytes);
+
+	/* LRU */
+	spin_lock_irqsave(&(index->index_lru_list_lock), flags);
+	list_add_tail(&((*new_entry)->index_lru_list_entry),
+		      &index->index_lru_list);
+	spin_unlock_irqrestore(&index->index_lru_list_lock, flags);
 
 out:
 	TRACE_EXIT_RES(result);
@@ -483,6 +498,7 @@ int cch_index_create_mid_entry(
 	int offset)
 {
 	int result = 0;
+	unsigned long flags;
 #ifdef CCH_INDEX_DEBUG
 	int i = 0;
 #endif
@@ -510,9 +526,16 @@ int cch_index_create_mid_entry(
 	(*new_entry)->magic = CCH_INDEX_ENTRY_MAGIC;
 #endif
 
+	/* memory accounting */
 	index->total_bytes += index->mid_level_entry_size;
 	cch_index_on_new_entry_alloc(index,
 		index->mid_level_entry_size, index->total_bytes);
+
+	/* LRU */
+	spin_lock_irqsave(&(index->index_lru_list_lock), flags);
+	list_add_tail(&((*new_entry)->index_lru_list_entry),
+		      &index->index_lru_list);
+	spin_unlock_irqrestore(&index->index_lru_list_lock, flags);
 
 out:
 	TRACE_EXIT_RES(result);
@@ -722,6 +745,8 @@ int __cch_index_entry_insert_direct(
 
 	TRACE(TRACE_DEBUG,
 	      "result of insert is %p", entry->v[offset].value);
+
+	cch_index_entry_lru_update(index, entry);
 
 out:
 	TRACE_EXIT_RES(result);
@@ -1133,6 +1158,8 @@ int cch_index_insert_direct(
 	if (new_index_entry)
 		*new_index_entry = right_entry;
 
+	cch_index_entry_lru_update(index, entry);
+
 out_unlock:
 	mutex_unlock(&index->cch_index_value_mutex);
 
@@ -1222,6 +1249,8 @@ int cch_index_find_direct(
 	if (next_index_entry)
 		*next_index_entry = right_entry;
 
+	cch_index_entry_lru_update(index, entry);
+
 out_unlock:
 	mutex_unlock(&index->cch_index_value_mutex);
 
@@ -1305,18 +1334,22 @@ int cch_index_find(struct cch_index *index, uint64_t key,
 	PRINT_INFO("offset is 0x%x", lowest_offset);
 	*out_value = current_entry->v[lowest_offset].value;
 
-	if (out_value)
+	cch_index_entry_lru_update(index, current_entry);
+
+	if (*out_value != NULL) {
+		result = 0;
+
+		if (index_entry)
+			*index_entry = current_entry;
+		if (value_offset)
+			*value_offset = lowest_offset;
+		
+		PRINT_INFO("found 0x%lx", (long int) *out_value);
+
 		cch_index_value_lock(*out_value);
-	else
+	} else {
 		result = -ENOENT;
-
-	if (index_entry)
-		*index_entry = current_entry;
-	if (value_offset)
-		*value_offset = lowest_offset;
-
-	PRINT_INFO("found 0x%lx", (long int) *out_value);
-	result = (*out_value == NULL) ? -ENOENT : 0;
+	}
 
 out_unlock:
 	mutex_unlock(&index->cch_index_value_mutex);
@@ -1379,6 +1412,8 @@ int cch_index_insert(struct cch_index *index,
 	if (new_index_entry)
 		*new_index_entry = current_entry;
 
+	cch_index_entry_lru_update(index, current_entry);
+
 out_unlock:
 	mutex_unlock(&index->cch_index_value_mutex);	
 	
@@ -1405,6 +1440,9 @@ int cch_index_remove(struct cch_index *index, uint64_t key)
 	lowest_offset = EXTRACT_LOWEST_OFFSET(index, key);
 
 	__cch_index_entry_remove_value(index, current_entry, lowest_offset);
+
+	/* we don't want this entry get unloaded while we're touching it */
+	cch_index_entry_lru_update(index, current_entry);
 
 	/* and now we check if some entries should be cleaned up */
 	__cch_index_entry_cleanup(index, current_entry);

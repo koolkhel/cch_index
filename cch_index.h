@@ -129,6 +129,31 @@ extern void cch_index_free_cluster(void);
 #define ENTRY_LOCKED_BIT (1UL << 1)
 #define ENTRY_SAVED_BIT (1UL << 2)
 
+static inline void cch_index_entry_lru_update(
+	struct cch_index *index,
+	struct cch_index_entry *entry)
+{
+	unsigned long flags;
+
+	/* update LRU */
+	spin_lock_irqsave(&(index->index_lru_list_lock), flags);
+	list_move_tail(&(entry->index_lru_list_entry),
+		       &(index->index_lru_list));
+	spin_unlock_irqrestore(&(index->index_lru_list_lock), flags);
+}
+
+/* remove entry from LRU list. Required on entry removal */
+static inline void cch_index_entry_lru_remove(
+	struct cch_index *index,
+	struct cch_index_entry *entry)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&(index->index_lru_list_lock), flags);
+	list_del(&(entry->index_lru_list_entry));
+	spin_unlock_irqrestore(&(index->index_lru_list_lock), flags);
+}
+
 static inline int cch_index_entry_is_root(struct cch_index_entry *entry)
 {
 	return entry->parent == NULL;
