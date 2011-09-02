@@ -429,14 +429,14 @@ static int __init reldata_index_init(void)
 		PRINT_ERROR("smoke test OK");
 
 	/* check 4k records using direct access */
-	result = direct_test();
+	//result = direct_test();
 	if (result)
 		PRINT_ERROR("direct test failure");
 	else
 		PRINT_ERROR("direct test success");
 
 	/* demonstrate that reference counting works */
-	result = remove_cleanup_test();
+	//result = remove_cleanup_test();
 	if (result != 0)
 		PRINT_ERROR("remove cleanup test failure");
 	else

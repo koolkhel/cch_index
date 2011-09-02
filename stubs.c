@@ -24,35 +24,45 @@ int cch_index_check_lock(void *value)
 
 int cch_index_value_lock(void *value)
 {
+	int result;
 	TRACE_ENTRY();
 
 	PRINT_INFO("value lock on %lx", (unsigned long) value);
 
-	TRACE_EXIT();
-	return 0;
+	TRACE_EXIT_RES(result);
+	return result;
 }
 
 int cch_index_value_unlock(void *value)
 {
+	int result;
+
 	TRACE_ENTRY();
+
 	PRINT_INFO("value unlock on %lx", (unsigned long) value);
-	TRACE_EXIT();
-	return 0;
+
+	TRACE_EXIT_RES(result);
+	return result;
 }
 
 void cch_index_on_new_entry_alloc(struct cch_index_entry *index,
 				  int inc_size, int new_size)
 {
 	TRACE_ENTRY();
+
 	PRINT_INFO("new index record allocated, %d -> %d", inc_size, new_size);
+
 	TRACE_EXIT();
+	return;
 }
 
 void cch_index_on_entry_free(struct cch_index_entry *index,
 				    int dec_size, int new_size)
 {
 	TRACE_ENTRY();
+
 	PRINT_INFO("index record free, %d -> %d", dec_size, new_size);
+
 	TRACE_EXIT();
 	return;
 }

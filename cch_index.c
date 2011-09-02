@@ -738,10 +738,12 @@ void __cch_index_entry_cleanup(
 
 		TRACE(TRACE_DEBUG, "destroy entry %p "
 		      "with parent %p, offset = %d",
-		      current_entry, parent, current_entry->parent_index);
+		      current_entry, parent, current_entry->parent_offset);
+
 		parent->v[current_entry->parent_offset].entry = NULL;
 		parent->ref_cnt--;
 		cch_index_destroy_entry(index, current_entry);
+
 		current_entry = parent;
 	}
 
