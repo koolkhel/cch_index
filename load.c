@@ -320,6 +320,11 @@ static int direct_test(void)
 	list_for_each_entry(index_entry, &(index->index_lru_list),
 			    index_lru_list_entry) {
 		i++;
+		if (cch_index_entry_is_mid_level(index_entry)) {
+			result = 1;
+			printk(KERN_ERR "mid level entry in LRU");
+			break;
+		}
 	}
 
 	j = (NUM_TEST_RECORDS /
