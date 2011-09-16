@@ -138,7 +138,7 @@ int cch_index_create(
 	spin_lock_init(&new_index->index_lru_list_lock);
 	INIT_LIST_HEAD(&new_index->index_lru_list);
 
-	new_index->total_bytes = 0;
+	atomic_set(&new_index->total_bytes, 0);
 
 	/* root + levels + lowest level */
 	new_index->levels = levels + 2;
@@ -247,9 +247,9 @@ void cch_index_destroy_lowest_level_entry(
 
 	kmem_cache_free(index->lowest_level_kmem, entry);
 
-	index->total_bytes -= index->lowest_level_entry_size;
-	cch_index_on_entry_free(index,
-		index->lowest_level_entry_size, index->total_bytes);
+	atomic_sub(index->lowest_level_entry_size, &index->total_bytes);
+	cch_index_on_entry_free(index, index->lowest_level_entry_size,
+		atomic_read(&index->total_bytes));
 
 	TRACE_EXIT();
 	return;
@@ -321,9 +321,9 @@ void cch_index_destroy_mid_level_entry(struct cch_index *index,
 
 	kmem_cache_free(index->mid_level_kmem, entry);
 
-	index->total_bytes -= index->mid_level_entry_size;
-	cch_index_on_entry_free(index,
-		index->mid_level_entry_size, index->total_bytes);
+	atomic_sub(index->mid_level_entry_size, &index->total_bytes);
+	cch_index_on_entry_free(index, index->mid_level_entry_size,
+		atomic_read(&index->total_bytes));
 
 	TRACE_EXIT();
 	return;
@@ -467,9 +467,9 @@ int cch_index_create_lowest_entry(
 #endif	
 
 	/* memory accounting */
-	index->total_bytes += index->lowest_level_entry_size;
-	cch_index_on_new_entry_alloc(index,
-		index->lowest_level_entry_size, index->total_bytes);
+	atomic_add(index->lowest_level_entry_size, &index->total_bytes);
+	cch_index_on_new_entry_alloc(index, index->lowest_level_entry_size,
+		atomic_read(&index->total_bytes));
 
 	/* LRU */
 	INIT_LIST_HEAD(&((*new_entry)->index_lru_list_entry));
@@ -497,7 +497,6 @@ int cch_index_create_mid_entry(
 	int offset)
 {
 	int result = 0;
-	unsigned long flags;
 #ifdef CCH_INDEX_DEBUG
 	int i = 0;
 #endif
@@ -526,9 +525,9 @@ int cch_index_create_mid_entry(
 #endif
 
 	/* memory accounting */
-	index->total_bytes += index->mid_level_entry_size;
-	cch_index_on_new_entry_alloc(index,
-		index->mid_level_entry_size, index->total_bytes);
+	atomic_add(index->mid_level_entry_size, &index->total_bytes);
+	cch_index_on_new_entry_alloc(index, index->mid_level_entry_size,
+		atomic_read(&index->total_bytes));
 
 out:
 	TRACE_EXIT_RES(result);

@@ -90,7 +90,7 @@ struct cch_index {
 	struct kmem_cache *mid_level_kmem;
 	struct kmem_cache *lowest_level_kmem;
 
-	int total_bytes;
+	atomic_t total_bytes;
 
 	cch_index_start_save_t start_save_fn;
 	cch_index_finish_save_t finish_save_fn;
