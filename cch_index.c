@@ -13,6 +13,7 @@
 static int trace_flag = TRACE_DEBUG;
 #endif
 
+/* index number by order, used for naming caches */
 static atomic_t _index_seq_n = ATOMIC_INIT(0);
 
 /**
@@ -102,12 +103,18 @@ int cch_index_create(
 	int bits,
 	int root_bits,
 	int low_bits,
-	cch_index_start_save_t cch_index_start_save_fn,
-	cch_index_finish_save_t cch_index_finish_save_fn,
-	cch_index_entry_save_t cch_index_save_fn,
-	cch_index_value_free_t cch_index_value_free_fn,
-	cch_index_load_data_t cch_index_load_data_fn,
-	cch_index_entry_load_t cch_index_load_entry_fn,
+
+	cch_index_on_new_entry_alloc_fn_t on_new_entry_alloc_fn,
+	cch_index_on_entry_free_fn_t on_entry_free_fn,
+
+	cch_index_start_full_save_fn_t start_full_save_fn,
+	cch_index_finish_full_save_fn_t finish_full_save_fn,
+
+	cch_index_write_cluster_data_fn_t write_cluster_data_fn,
+	cch_index_read_cluster_data_fn_t read_cluster_data_fn,
+
+	cch_index_start_transaction_fn_t start_transaction_fn,
+	cch_index_finish_transaction_fn_t finish_transaction_fn,
 	struct cch_index **out)
 {
 	int result;
@@ -127,12 +134,17 @@ int cch_index_create(
 		goto out;
 	}
 
-	new_index->start_save_fn  = cch_index_start_save_fn;
-	new_index->finish_save_fn = cch_index_finish_save_fn;
-	new_index->entry_save_fn  = cch_index_save_fn;
-	new_index->value_free_fn  = cch_index_value_free_fn;
-	new_index->load_data_fn   = cch_index_load_data_fn;
-	new_index->entry_load_fn  = cch_index_load_entry_fn;
+	new_index->on_new_entry_alloc_fn = on_new_entry_alloc_fn;
+	new_index->on_entry_free_fn      = on_entry_free_fn;
+
+	new_index->start_full_save_fn    = start_full_save_fn;
+	new_index->finish_full_save_fn   = finish_full_save_fn;
+
+	new_index->write_cluster_data_fn = write_cluster_data_fn;
+	new_index->read_cluster_data_fn  = read_cluster_data_fn;
+
+	new_index->start_transaction_fn  = start_transaction_fn;
+	new_index->finish_transaction_fn = finish_transaction_fn;
 
 	mutex_init(&new_index->cch_index_value_mutex);
 	spin_lock_init(&new_index->index_lru_list_lock);
@@ -247,7 +259,7 @@ void cch_index_destroy_lowest_level_entry(
 
 	kmem_cache_free(index->lowest_level_kmem, entry);
 
-	cch_index_on_entry_free(index, index->lowest_level_entry_size,
+	index->on_entry_free_fn(index, index->lowest_level_entry_size,
 		atomic_sub_return(index->lowest_level_entry_size,
 			&index->total_bytes));
 
@@ -321,7 +333,7 @@ void cch_index_destroy_mid_level_entry(struct cch_index *index,
 
 	kmem_cache_free(index->mid_level_kmem, entry);
 
-	cch_index_on_entry_free(index, index->mid_level_entry_size,
+	index->on_entry_free_fn(index, index->mid_level_entry_size,
 		atomic_sub_return(index->mid_level_entry_size,
 			&index->total_bytes));
 
@@ -436,6 +448,7 @@ int cch_index_create_lowest_entry(
 	int result = 0;
 	unsigned long flags;
 #ifdef CCH_INDEX_DEBUG
+
 	int i = 0;
 #endif
 
@@ -467,7 +480,7 @@ int cch_index_create_lowest_entry(
 #endif	
 
 	/* memory accounting */
-	cch_index_on_new_entry_alloc(index, index->lowest_level_entry_size,
+	index->on_new_entry_alloc_fn(index, index->lowest_level_entry_size,
 		atomic_add_return(index->lowest_level_entry_size,
 			&index->total_bytes));
 
@@ -525,7 +538,7 @@ int cch_index_create_mid_entry(
 #endif
 
 	/* memory accounting */
-	cch_index_on_new_entry_alloc(index, index->mid_level_entry_size,
+	index->on_new_entry_alloc_fn(index, index->mid_level_entry_size,
 		atomic_add_return(index->mid_level_entry_size,
 			   &index->total_bytes));
 
@@ -1271,28 +1284,6 @@ void cch_index_destroy(struct cch_index *index)
 }
 EXPORT_SYMBOL(cch_index_destroy);
 
-uint64_t cch_index_save(struct cch_index *index)
-{
-	TRACE_ENTRY();
-
-	sBUG_ON(index == NULL);
-
-	TRACE_EXIT();
-	return -ENOMEM;
-}
-EXPORT_SYMBOL(cch_index_save);
-
-int cch_index_load(struct cch_index *index, uint64_t start)
-{
-	TRACE_ENTRY();
-
-	sBUG_ON(index == NULL);
-
-	TRACE_EXIT();
-	return -ENOMEM;
-}
-EXPORT_SYMBOL(cch_index_load);
-
 int cch_index_find(struct cch_index *index, uint64_t key,
 		   void **out_value, struct cch_index_entry **index_entry,
 		   int *value_offset)
@@ -1447,6 +1438,29 @@ out_unlock:
 }
 EXPORT_SYMBOL(cch_index_remove);
 
+int cch_index_full_save(struct cch_index *index)
+{
+	TRACE_ENTRY();
+
+	sBUG_ON(index == NULL);
+
+	TRACE_EXIT();
+	return -ENOMEM;
+}
+EXPORT_SYMBOL(cch_index_full_save);
+
+int cch_index_full_restore(struct cch_index *index)
+{
+	TRACE_ENTRY();
+
+	sBUG_ON(index == NULL);
+
+	TRACE_EXIT();
+	return -ENOMEM;
+}
+EXPORT_SYMBOL(cch_index_full_restore);
+
+
 int cch_index_shrink(struct cch_index_entry *index, int max_mem_kb)
 {
 	TRACE_ENTRY();
@@ -1458,13 +1472,3 @@ int cch_index_shrink(struct cch_index_entry *index, int max_mem_kb)
 }
 EXPORT_SYMBOL(cch_index_shrink);
 
-int cch_index_restore(struct cch_index_entry *index)
-{
-	TRACE_ENTRY();
-
-	sBUG_ON(index == 0);
-
-	TRACE_EXIT();
-	return -ENOMEM;
-}
-EXPORT_SYMBOL(cch_index_restore);

@@ -10,21 +10,80 @@
 #define CCH_INDEX_LOW_LEVEL_ALIGN 8
 #define CCH_INDEX_MID_LEVEL_ALIGN 8
 
-typedef void (*cch_index_start_save_t)(void);
-typedef void (*cch_index_finish_save_t)(void);
-typedef void (*cch_index_entry_save_t)(void);
-typedef void (*cch_index_value_free_t)(void);
-typedef void (*cch_index_load_data_t)(void);
-typedef void (*cch_index_entry_load_t)(void);
+/*
+1. cch_index_start_full_save_fn(struct cch_index *index) - this function would
+start full save. Particularly, it would start new transaction, if needed, and
+truncate all already saved index data.
 
-void cch_index_start_save_fn(void);
-void cch_index_finish_save_fn(void);
-void cch_index_entry_save_fn(void);
-void cch_index_value_free_fn(void);
-void cch_index_load_data_fn(void);
-void cch_index_load_entry_fn(void);
+2. cch_index_finish_full_save_fn(struct cch_index *index) - this function would
+finish full save. Particularly, it would finish its transaction, if needed.
+
+3. cch_index_write_cluster_data_fn(struct cch_index *index, uint64_t offset, const
+uint8_t *buffer, int buf_len) - would write to the storage starting from offset
+offset data for one or more clusters from buffer buffer with len buf_len. Return 0
+on success or negative error code otherwise. Note, not amount of written data!
+Better to have all or nothing semantic.
+
+4. cch_index_read_cluster_data_fn(struct cch_index *index, uint64_t offset,
+uint8_t *buffer, int buf_len) - would read from the storage starting from offset
+offset data for one or more clusters to buffer buffer up to len buf_len. Return
+amount of read data.
+
+5. cch_index_start_transaction_fn(struct cch_index *index) - would start a new
+transaction. May be NULL, when transactions not needed. Transactions should not be
+nested. If nested transactions will be needed during implementation, let's discuss it.
+
+6. cch_index_finish_transaction_fn(struct cch_index *index) - would start a new
+transaction. May be NULL, when transactions not needed.
+*/
+
+struct cch_index;
+
+typedef int (*cch_index_start_full_save_fn_t)(struct cch_index *index);
+typedef int (*cch_index_finish_full_save_fn_t)(struct cch_index *index);
+typedef int (*cch_index_write_cluster_data_fn_t)(
+	struct cch_index * index,
+	uint64_t offset, const uint8_t *buffer, int buf_len);
+typedef int (*cch_index_read_cluster_data_fn_t)(
+	struct cch_index * index,
+	uint64_t offset, uint8_t *buffer, int buf_len);
+typedef int (*cch_index_start_transaction_fn_t)(struct cch_index *index);
+typedef int (*cch_index_finish_transaction_fn_t)(struct cch_index *index);
+
+typedef void (*cch_index_on_new_entry_alloc_fn_t)(struct cch_index *index,
+	int inc_size, int new_size);
+typedef void (*cch_index_on_entry_free_fn_t)(struct cch_index *index,
+	int dec_size, int new_size);
+
+/* defined in stubs here */
+void cch_index_on_new_entry_alloc(struct cch_index *,
+	int inc_size, int new_size);
+void cch_index_on_entry_free(struct cch_index *,
+			     int dec_size, int new_size);
+int cch_index_start_full_save(struct cch_index *);
+int cch_index_finish_full_save(struct cch_index *);
+int cch_index_write_cluster_data(struct cch_index *,
+	uint64_t offset, const uint8_t *buffer, int buf_len);
+int cch_index_read_cluster_data(struct cch_index *,
+	uint64_t offset, uint8_t *buffer, int buf_len);
+int cch_index_start_transaction(struct cch_index *);
+int cch_index_finish_transaction(struct cch_index *);
+
+/* functions marked as external */
+/* Value locking */
+
+/* check if object is locked and lock, otherwise non-zero return */
+extern int cch_index_value_test_and_lock(void *value);
+/* probably won't needed as check and lock should be atomic operation */
+extern int cch_index_check_lock(void *value);
+extern int cch_index_value_lock(void *value);
+extern int cch_index_value_unlock(void *value);
+
+#ifdef CCH_INDEX_DEBUG
 
 #define CCH_INDEX_ENTRY_MAGIC 0x117700FF
+
+#endif
 
 struct cch_index_entry {
 	#ifdef CCH_INDEX_DEBUG
@@ -92,12 +151,18 @@ struct cch_index {
 
 	atomic_t total_bytes;
 
-	cch_index_start_save_t start_save_fn;
-	cch_index_finish_save_t finish_save_fn;
-	cch_index_entry_save_t entry_save_fn;
-	cch_index_value_free_t value_free_fn;
-	cch_index_load_data_t load_data_fn;
-	cch_index_entry_load_t entry_load_fn;
+	cch_index_on_new_entry_alloc_fn_t on_new_entry_alloc_fn;
+	cch_index_on_entry_free_fn_t on_entry_free_fn;
+
+	cch_index_start_full_save_fn_t start_full_save_fn;
+	cch_index_finish_full_save_fn_t finish_full_save_fn;
+
+	cch_index_write_cluster_data_fn_t write_cluster_data_fn;
+	cch_index_read_cluster_data_fn_t read_cluster_data_fn;
+
+	cch_index_start_transaction_fn_t start_transaction_fn;
+	cch_index_finish_transaction_fn_t finish_transaction_fn;
+
 
 	/* Must be last element as it is direction of growing */
 	struct cch_index_entry head;
@@ -113,17 +178,6 @@ struct cch_index {
 
 #define	EXTRACT_LOWEST_OFFSET(index, key)				\
 	EXTRACT_BIASED_VALUE(key, index->levels_desc, index->levels - 1)
-
-
-extern int cch_index_check_lock(void *value);
-extern int cch_index_value_lock(void *value);
-extern int cch_index_value_unlock(void *value);
-extern void cch_index_on_new_entry_alloc(
-	struct cch_index *index, int inc_size, int new_size);
-extern void cch_index_on_entry_free(
-	struct cch_index *index, int dec_size, int new_size);
-extern void cch_index_alloc_new_cluster(void);
-extern void cch_index_free_cluster(void);
 
 #define ENTRY_LOWEST_ENTRY_BIT (1UL << 0)
 #define ENTRY_LOCKED_BIT (1UL << 1)
@@ -245,22 +299,23 @@ int cch_index_create(
 	int bits,
 	int root_bits,
 	int low_bits,
-	cch_index_start_save_t cch_index_start_save_fn,
-	cch_index_finish_save_t cch_index_finish_save_fn,
-	cch_index_entry_save_t cch_index_save_fn,
-	cch_index_value_free_t cch_index_value_free_fn,
-	cch_index_load_data_t cch_entry_load_data_fn,
-	cch_index_entry_load_t cch_index_load_entry_fn,
+
+	cch_index_on_new_entry_alloc_fn_t on_new_entry_alloc_fn,
+	cch_index_on_entry_free_fn_t on_entry_free_fn,
+
+	cch_index_start_full_save_fn_t start_full_save_fn,
+	cch_index_finish_full_save_fn_t finish_full_save_fn,
+
+	cch_index_write_cluster_data_fn_t write_cluster_data_fn,
+	cch_index_read_cluster_data_fn_t read_cluster_data_fn,
+
+	cch_index_start_transaction_fn_t start_transaction_fn,
+	cch_index_finish_transaction_fn_t finish_transaction_fn,
+
 	struct cch_index **out);
 
 /* destroy, deallocate, don't allow used index*/
 void cch_index_destroy(struct cch_index *index);
-
-/* save to disk, return offset */
-uint64_t cch_index_save(struct cch_index *index);
-
-/* load from disk using "start" offset, return error code */
-int cch_index_load(struct cch_index *index, uint64_t start);
 
 /* search */
 
@@ -327,7 +382,24 @@ int cch_index_remove_direct(
 /* push excessive data to block device, reach max_mem_kb memory usage */
 int cch_index_shrink(struct cch_index_entry *index, int max_mem_kb);
 
-/* restore from disk */
-int cch_index_restore(struct cch_index_entry *index);
+
+/* save to disk, return offset */
+uint64_t cch_index_save(struct cch_index *index);
+
+/* save to device using callbacks provided at cch_index_create */
+int cch_index_full_save(struct cch_index *index);
+
+/* load from device using same callbacks */
+int cch_index_full_restore(struct cch_index *index);
+
+/*
+ * on-disk data structure assumes that loading occurs with
+ * same index structure properties with root node at
+ * zero offset. 
+ * 
+ * Every other entry is either zero if there was no entry 
+ * when index was saved to disk or disk offset of
+ * cluster holding corresponding entry.
+ */
 
 #endif  /* RELDATA_INDEX_H */

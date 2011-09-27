@@ -164,12 +164,14 @@ static int smoke_test(void)
 		/* total bits */     64,
 		/* root_bits */ 8,
 		/* low_bits */  8, /* 46 total */
-		cch_index_start_save_fn,
-		cch_index_finish_save_fn,
-		cch_index_entry_save_fn,
-		cch_index_value_free_fn,
-		cch_index_load_data_fn,
-		cch_index_load_entry_fn,
+		cch_index_on_new_entry_alloc,
+		cch_index_on_entry_free,
+		cch_index_start_full_save,
+		cch_index_finish_full_save,
+		cch_index_write_cluster_data,
+		cch_index_read_cluster_data,
+		cch_index_start_transaction,
+		cch_index_finish_transaction,
 		&index);
 	if (result != 0) {
 		PRINT_INFO("index creation failure, result %d\n", result);
@@ -234,13 +236,15 @@ static int direct_test(void)
 				  /* total bits */      64,
 				  /* root_bits */ 8,
 				  /* low_bits */  8,
-				  cch_index_start_save_fn,
-				  cch_index_finish_save_fn,
-				  cch_index_entry_save_fn,
-				  cch_index_value_free_fn,
-				  cch_index_load_data_fn,
-				  cch_index_load_entry_fn,
-				  &index);
+		cch_index_on_new_entry_alloc,
+		cch_index_on_entry_free,
+		cch_index_start_full_save,
+		cch_index_finish_full_save,
+		cch_index_write_cluster_data,
+		cch_index_read_cluster_data,
+		cch_index_start_transaction,
+		cch_index_finish_transaction,
+		&index);
 	if (result != 0) {
 		PRINT_ERROR("index creation failure, result %d", result);
 		goto out;
@@ -357,13 +361,15 @@ static int remove_cleanup_test(void)
 				  /* total bits */      64,
 				  /* root_bits */ 8,
 				  /* low_bits */  8,
-				  cch_index_start_save_fn,
-				  cch_index_finish_save_fn,
-				  cch_index_entry_save_fn,
-				  cch_index_value_free_fn,
-				  cch_index_load_data_fn,
-				  cch_index_load_entry_fn,
-				  &index);
+		cch_index_on_new_entry_alloc,
+		cch_index_on_entry_free,
+		cch_index_start_full_save,
+		cch_index_finish_full_save,
+		cch_index_write_cluster_data,
+		cch_index_read_cluster_data,
+		cch_index_start_transaction,
+		cch_index_finish_transaction,
+		&index);
 	if (result != 0) {
 		PRINT_ERROR("index creation failure, result %d", result);
 		goto out;

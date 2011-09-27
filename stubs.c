@@ -19,7 +19,7 @@ int cch_index_check_lock(void *value)
 	PRINT_INFO("check lock on %lx", (unsigned long) value);
 
 	TRACE_EXIT();
-	return 0;
+	return 0; /* not locked */
 }
 
 int cch_index_value_lock(void *value)
@@ -28,6 +28,17 @@ int cch_index_value_lock(void *value)
 	TRACE_ENTRY();
 
 	PRINT_INFO("value lock on %lx", (unsigned long) value);
+
+	TRACE_EXIT_RES(result);
+	return result;
+}
+
+int cch_index_value_test_and_lock(void *value)
+{
+	int result = 0;
+	TRACE_ENTRY();
+
+	PRINT_INFO("value try and lock on %lx", (unsigned long) value);
 
 	TRACE_EXIT_RES(result);
 	return result;
@@ -69,60 +80,63 @@ void cch_index_on_entry_free(
 	return;
 }
 
-void cch_index_alloc_new_cluster(void)
+int cch_index_start_full_save(struct cch_index *index)
 {
+	int result = 0;
+
 	TRACE_ENTRY();
-	PRINT_INFO("alloc new cluster\n");
-	TRACE_EXIT();
-	return;
+
+	TRACE_EXIT_RES(result);
+	return result;
 }
 
-void cch_index_free_cluster(void)
+int cch_index_finish_full_save(struct cch_index *index)
 {
+	int result = 0;
+
 	TRACE_ENTRY();
-	PRINT_INFO("free cluster\n");
-	TRACE_EXIT();
-	return;
+
+	TRACE_EXIT_RES(result);
+	return result;
 }
 
-void cch_index_start_save_fn(void)
+int cch_index_write_cluster_data(struct cch_index * index,
+	uint64_t offset, const uint8_t *buffer, int buf_len)
 {
+	int result = 0;
 	TRACE_ENTRY();
-	TRACE_EXIT();
-	return;
+
+	TRACE_EXIT_RES(result);
+	return result;
 }
 
-void cch_index_finish_save_fn(void)
+int cch_index_read_cluster_data(struct cch_index * index,
+	uint64_t offset, uint8_t *buffer, int buf_len)
 {
+	int result = 0;
+
 	TRACE_ENTRY();
-	TRACE_EXIT();
-	return;
+
+	TRACE_EXIT_RES(result);
+	return result;
 }
 
-void cch_index_entry_save_fn(void)
+int cch_index_start_transaction(struct cch_index *index)
 {
+	int result = 0;
+
 	TRACE_ENTRY();
-	TRACE_EXIT();
-	return;
+
+	TRACE_EXIT_RES(result);
+	return result;
 }
 
-void cch_index_value_free_fn(void)
+int cch_index_finish_transaction(struct cch_index *index)
 {
-	TRACE_ENTRY();
-	TRACE_EXIT();
-	return;
-}
+	int result = 0;
 
-void cch_index_load_data_fn(void)
-{
 	TRACE_ENTRY();
-	TRACE_EXIT();
-	return;
-}
 
-void cch_index_load_entry_fn(void)
-{
-	TRACE_ENTRY();
-	TRACE_EXIT();
-	return;
+	TRACE_EXIT_RES(result);
+	return result;
 }
