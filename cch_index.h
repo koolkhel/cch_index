@@ -315,7 +315,7 @@ int cch_index_create(
 	struct cch_index **out);
 
 /* destroy, deallocate, don't allow used index*/
-void cch_index_destroy(struct cch_index *index);
+int cch_index_destroy(struct cch_index *index);
 
 /* search */
 

@@ -1265,11 +1265,31 @@ out_unlock:
 EXPORT_SYMBOL(cch_index_find_direct);
 
 
-void cch_index_destroy(struct cch_index *index)
+int cch_index_destroy(struct cch_index *index)
 {
+	int result = 0;
+	int i = 0;
+	struct cch_index_entry *entry;
+
 	TRACE_ENTRY();
 
 	sBUG_ON(index == NULL);
+
+	mutex_lock(&index->cch_index_value_mutex);
+
+	list_for_each_entry(entry, &index->index_lru_list,
+			    index_lru_list_entry) {
+		if (!cch_index_entry_is_lowest_level(entry))
+			continue;
+		/* check if any value is locked */
+		for (i = 0; i < cch_index_entry_size(index, entry); i++) {
+			if (cch_index_check_lock(entry->v[i].value)) {
+				/* can't free index */
+				result = -EBUSY;
+				goto out_mutex_unlock;
+			}
+		}
+	}
 
 	/* FIXME check usage */
 	/* FIXME locking */
@@ -1279,8 +1299,13 @@ void cch_index_destroy(struct cch_index *index)
 	kfree(index->levels_desc);
 	kfree(index);
 
-	TRACE_EXIT();
-	return;
+out:
+	TRACE_EXIT_RES(result);
+	return result;
+
+out_spin_unlock:
+	mutex_unlock(&index->cch_index_value_mutex);
+	goto out;
 }
 EXPORT_SYMBOL(cch_index_destroy);
 
