@@ -6,6 +6,8 @@
 #include "cch_index.h"
 #include "cch_index_debug.h"
 
+#include "stubs.h"
+
 /*
  * Wrappers to index function to avoid repeating of error checking
  * in tests.
@@ -440,6 +442,51 @@ out:
 	return result;
 }
 
+static int io_stubs_test(void)
+{
+	int result = 0;
+	char buf[16];
+	char buf1[16];
+	int i = 0;
+
+	TRACE_ENTRY();
+
+	cch_index_io_stub_setup(16);
+	buf[0] = 66;
+	buf[1] = 67;
+	cch_index_write_cluster_data(NULL, 32, buf, 16);
+	cch_index_read_cluster_data(NULL, 32, buf1, 16);
+
+	for (i = 0; i < 16; i++)
+	{
+		if (buf[i] != buf1[i]) {
+			result = 1;
+			PRINT_ERROR("write mismatch");
+		}
+	}
+	
+	cch_index_io_stub_shutdown();
+
+	TRACE_EXIT_RES(result);
+	return result;
+}
+
+#define CCH_INDEX_TEST(TESTNAME, TSTNAME)				\
+	do {							\
+		total_result |= (result = TESTNAME##_test());	\
+		printk(KERN_INFO TSTNAME " %s\n",		\
+		       (result == 0) ? "ok": "failure");	\
+	} while(0);
+
+#define CCH_INDEX_TEST_FINISH()				\
+	do {						\
+		if (total_result == 0)			\
+			printk(KERN_INFO "all ok\n");	\
+		else					\
+			printk(KERN_INFO "failure\n");	\
+	} while (0)
+
+
 static int __init reldata_index_init(void)
 {
 	int result = 0, total_result = 0;
@@ -449,31 +496,15 @@ static int __init reldata_index_init(void)
 	printk(KERN_INFO "start\n");
 
 	/* check if index can hold some records at all */
-	total_result |= (result = smoke_test());
-	if (result == 0)
-		printk(KERN_INFO "smoke ok\n");
-	else
-		printk(KERN_INFO "smoke failure\n");
-
+	//CCH_INDEX_TEST(smoke, "smoke");
 	/* check 4k records using direct access */
-	total_result |= (result = direct_test());
-	if (result == 0)
-		printk(KERN_INFO "direct ok\n");
-	else
-		printk(KERN_INFO "direct failure\n");
-
+	//CCH_INDEX_TEST(direct, "direct");
 	/* demonstrate that reference counting works */
-	total_result |= (result = remove_cleanup_test());
-	if (result == 0)
-		printk(KERN_INFO "cleanup ok\n");
-	else
-		printk(KERN_INFO "cleanup failure\n");
+	//CCH_INDEX_TEST(remove_cleanup, "remove_cleanup");
+	/* test I/O stubs */
+	CCH_INDEX_TEST(io_stubs, "io_stubs");
 
-	/* need to print regardless of CCH_INDEX_DEBUG */
-	if (total_result == 0)
-		printk(KERN_INFO "all ok\n");
-	else
-		printk(KERN_INFO "all failure\n");
+	CCH_INDEX_TEST_FINISH();
 
 	TRACE_EXIT_RES(result);
 	return result;

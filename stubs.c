@@ -131,7 +131,8 @@ int cch_index_io_stub_setup(int cluster_size)
 	TRACE_ENTRY();
 
 	cch_written_cluster_cache_stub = kmem_cache_create(
-		"cch_stub_cluster_cache", cluster_size,
+		"cch_stub_cluster_cache", cluster_size +
+		sizeof(struct cch_written_cluster_stub),
 		8, 0, NULL);
 
 	if (!cch_written_cluster_cache_stub)
@@ -154,6 +155,7 @@ void cch_index_io_stub_shutdown(void)
 		&cch_written_cluster_head,
 		cch_written_cluster_entry) {
 
+		list_del(&(cluster->cch_written_cluster_entry));
 		kmem_cache_free(cch_written_cluster_cache_stub, cluster);
 	};
 
@@ -173,7 +175,10 @@ int cch_index_write_cluster_data(struct cch_index * index,
 
 	/* we assume we speak in terms of single clusters now */
 	sBUG_ON(buf_len != stub_cluster_size);
-
+	/* we can't check that offset is multiple of cluster size
+	 * because division is prohibited
+	 */
+	
 	/* case 1. seek for given offset, write there if any */
 	list_for_each_entry(cluster, &cch_written_cluster_head,
 			    cch_written_cluster_entry) {
@@ -187,11 +192,15 @@ int cch_index_write_cluster_data(struct cch_index * index,
 		goto write_cluster;
 
 	/* case 2. create one, append to list, write to it */
+	PRINT_INFO("creating new cluster");
 	cluster = kmem_cache_zalloc(cch_written_cluster_cache_stub,
 		GFP_KERNEL);
+	list_add(&(cluster->cch_written_cluster_entry),
+		 &cch_written_cluster_head);
 
 	cluster->offset = offset;
 	cluster->len = buf_len;
+
 write_cluster:
 	memcpy(cluster->data, buffer, buf_len);
 
