@@ -1286,7 +1286,7 @@ int cch_index_destroy(struct cch_index *index)
 			if (cch_index_check_lock(entry->v[i].value)) {
 				/* can't free index */
 				result = -EBUSY;
-				goto out_mutex_unlock;
+				goto out_spin_unlock;
 			}
 		}
 	}
