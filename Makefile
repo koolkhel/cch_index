@@ -1,3 +1,5 @@
+CC=gcc-4.4
+
 obj-m += cchindex.o
 cchindex-objs := load.o cch_index.o stubs.o cch_index_debug.o
 

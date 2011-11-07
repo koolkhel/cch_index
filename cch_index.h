@@ -168,6 +168,91 @@ struct cch_index {
 	struct cch_index_entry head;
 };
 
+/* 
+ * backend storage is managed by clusters. Clusters are made
+ * of backend index entries, which when being of known type
+ * (mid or lowest level) contain either reference
+ * to further blocks or to values; 
+ */
+struct cch_backend_index_entry {
+	/* start_offs_key doesn't have meaning when this b_i_e
+	 * represent a mid level entry*/
+	uint64_t start_offs_key;
+	int len;
+	union {
+		uint64_t backend_dev_offs;
+		void *value;
+	} v[];
+};
+
+/* one or more b_i_e's of known kind put together
+ * to ready the write request. or a result of read request
+ */
+struct cch_backend_cluster {
+	uint64_t signature;
+
+	/* how many backend entries of type determined by
+	 * signature are here in this cluster */
+	int num_entries;
+
+	uint8_t data[];
+};
+
+/* alloc a new empty cluster usable for reading and writing */
+int cch_index_backend_cluster_alloc(
+	struct cch_index *index,
+	uint64_t kind, /* kind is a signature */
+	struct cch_backend_cluster **new_cluster);
+
+int cch_index_backend_cluster_fill_start(
+	struct cch_index *index,
+	struct cch_backend_cluster **new_cluster);
+
+/* -ENOSPC when full */
+int cch_index_backend_cluster_fill_put(
+	struct cch_index *index,
+	struct cch_backend_cluster *cluster,
+	struct cch_backend_index_entry *entry,
+	int *next /* how many records could be fit */);
+
+/* finalize cluster after all entries are added */
+int cch_index_backend_cluster_fill_finish(
+	struct cch_index *index,
+	struct cch_backend_cluster *cluster);
+
+/* 
+ * cluster data is read by backend read and is parsed
+ * in-place
+ *
+ * This function checks cluster integrity.
+ * 
+ * Non-zero return means corrupted cluster.
+ */
+int cch_index_backend_cluster_parse_start(
+	struct cch_index *index,
+	struct cch_backend_cluster *clu-ster);
+
+/* 
+ * -ENOENT when there is no next entry thus
+ * cluster is parsed fully
+ */
+int cch_index_backend_cluster_parse_get(
+	struct cch_index *index,
+	struct cch_backend_cluster *cluster,
+	struct backend_index_entry *entry,
+	int *next);
+
+/* nothing to do here yet */
+int cch_index_backend_cluster_parse_finish(
+	struct cch_index *index,
+	struct cch_backend_cluster *cluster);
+
+/* signatures for backend clusters */
+
+#define CCH_INDEX_BACKEND_CLUSTER_MID 0x5FEA961BCE307190
+#define CCH_INDEX_BACKEND_CLUSTER_LOW 0x907130CE1B96EA5F
+#define CCH_INDEX_BACKEND_CLUSTER_ROOT 0xCE71901B5FEA9630
+
 /**
  * extract part of key that describes i-th level of index,
  * it can be used as offset of v[] table of index entry

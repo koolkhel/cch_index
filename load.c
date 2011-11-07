@@ -464,6 +464,18 @@ static int io_stubs_test(void)
 			PRINT_ERROR("write mismatch");
 		}
 	}
+
+	buf1[2] = 68;
+	cch_index_write_cluster_data(NULL, 32, buf1, 16);
+	cch_index_read_cluster_data(NULL, 32, buf, 16);
+
+	for (i = 0; i < 16; i++)
+	{
+		if (buf[i] != buf1[i]) {
+			result = 1;
+			PRINT_ERROR("write mismatch");
+		}
+	}
 	
 	cch_index_io_stub_shutdown();
 
@@ -485,7 +497,6 @@ static int io_stubs_test(void)
 		else					\
 			printk(KERN_INFO "failure\n");	\
 	} while (0)
-
 
 static int __init reldata_index_init(void)
 {

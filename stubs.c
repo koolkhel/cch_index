@@ -170,13 +170,19 @@ int cch_index_write_cluster_data(struct cch_index * index,
 {
 	int result = 0;
 	int overwrite = 0; /* should we overwrite existing cluster */
+	int offset32 = 0;
 	struct cch_written_cluster_stub *cluster;
 	TRACE_ENTRY();
 
 	/* we assume we speak in terms of single clusters now */
 	sBUG_ON(buf_len != stub_cluster_size);
+	/* we write only at offsets that are multiples of cluster size */
+	offset32 = offset & 0xFFFFFFFF;
+	sBUG_ON(offset32 % stub_cluster_size != 0);
+
 	/* we can't check that offset is multiple of cluster size
-	 * because division is prohibited
+	 * because division is prohibited -- maybe because of wrong
+	 * gcc
 	 */
 	
 	/* case 1. seek for given offset, write there if any */
