@@ -67,3 +67,6 @@ gendocs:
 	doxygen doc.conf
 
 .PHONY: gendocs deploy unload load clean default dump clean release
+
+ec:
+	emacsclient -n cch_index.h cch_index.c load.c stubs.h stubs.c cch_index_debug.h cch_index_debug.c

@@ -149,6 +149,10 @@ struct cch_index {
 	struct kmem_cache *mid_level_kmem;
 	struct kmem_cache *lowest_level_kmem;
 
+	/* backend stuff */
+	int backend_cluster_size;
+	struct kmem_cache *backend_cluster_kmem;
+
 	atomic_t total_bytes;
 
 	cch_index_on_new_entry_alloc_fn_t on_new_entry_alloc_fn;
@@ -196,6 +200,10 @@ struct cch_backend_cluster {
 	int num_entries;
 
 	uint8_t data[];
+
+	/* some padding */
+
+	/* 4 bytes of crc32 */
 };
 
 /* alloc a new empty cluster usable for reading and writing */
@@ -206,13 +214,13 @@ int cch_index_backend_cluster_alloc(
 
 int cch_index_backend_cluster_fill_start(
 	struct cch_index *index,
-	struct cch_backend_cluster **new_cluster);
+	struct cch_backend_cluster *new_cluster);
 
 /* -ENOSPC when full */
 int cch_index_backend_cluster_fill_put(
 	struct cch_index *index,
 	struct cch_backend_cluster *cluster,
-	struct cch_backend_index_entry *entry,
+	struct cch_index_entry *entry,
 	int *next /* how many records could be fit */);
 
 /* finalize cluster after all entries are added */
@@ -226,20 +234,22 @@ int cch_index_backend_cluster_fill_finish(
  *
  * This function checks cluster integrity.
  * 
- * Non-zero return means corrupted cluster.
+ * -EIO means corrupted cluster.
  */
 int cch_index_backend_cluster_parse_start(
 	struct cch_index *index,
-	struct cch_backend_cluster *clu-ster);
+	struct cch_backend_cluster *cluster);
 
 /* 
  * -ENOENT when there is no next entry thus
  * cluster is parsed fully
+ * 
+ * Inserts the read entry to index, returning a pointer to it.
  */
 int cch_index_backend_cluster_parse_get(
 	struct cch_index *index,
 	struct cch_backend_cluster *cluster,
-	struct backend_index_entry *entry,
+	struct cch_index_entry *new_entry,
 	int *next);
 
 /* nothing to do here yet */
@@ -252,6 +262,39 @@ int cch_index_backend_cluster_parse_finish(
 #define CCH_INDEX_BACKEND_CLUSTER_MID 0x5FEA961BCE307190
 #define CCH_INDEX_BACKEND_CLUSTER_LOW 0x907130CE1B96EA5F
 #define CCH_INDEX_BACKEND_CLUSTER_ROOT 0xCE71901B5FEA9630
+
+static inline int cch_backend_cluster_is_root(
+	struct cch_backend_cluster *cluster)
+{
+	return (cluster->signature == CCH_INDEX_BACKEND_CLUSTER_ROOT);
+}
+
+static inline int cch_backend_cluster_is_lowest(
+	struct cch_backend_cluster *cluster)
+{
+	return (cluster->signature == CCH_INDEX_BACKEND_CLUSTER_LOW);
+}
+
+static inline int cch_backend_cluster_is_mid(
+	struct cch_backend_cluster *cluster)
+{
+	return (cluster->signature == CCH_INDEX_BACKEND_CLUSTER_MID);
+}
+
+static inline int cch_backend_cluster_entry_size(
+	struct cch_index *index,
+	struct cch_backend_cluster *cluster) {
+	int size;
+	if (cluster->signature == CCH_INDEX_BACKEND_CLUSTER_MID) {
+		size = index->levels_desc[index->mid_level].size;
+	} else if (cluster->signature == CCH_INDEX_BACKEND_CLUSTER_LOW) {
+		size = index->levels_desc[index->lowest_level].size;
+	} else if (cluster->signature == CCH_INDEX_BACKEND_CLUSTER_ROOT) {
+		size = index->evels_desc[index->root_level].size;	
+	} else
+		size = -1;
+	return size;
+}
 
 /**
  * extract part of key that describes i-th level of index,

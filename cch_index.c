@@ -1,3 +1,4 @@
+#include <linux/crc32.h>
 #include <linux/bug.h>
 #include <linux/list.h>
 #include <linux/module.h>
@@ -97,6 +98,59 @@ void show_index_description(struct cch_index *index)
 	return;
 }
 #endif
+
+int cch_index_backend_cluster_calculate_size(struct cch_index *index, int *cluster_size)
+{
+	int result = 0;
+	int potential_cluster_size = {
+		1024,
+		1024 * 2,
+		1024 * 4,
+		1024 * 8,
+		1024 * 16,
+		1024 * 32
+	};
+	int i, good_i, good_reminder, lowest_level_size, mid_level_size;
+
+	TRACE_ENTRY();
+
+	lowest_level_size = index->levels_desc[index->lowest_level].size *
+		sizeof(uint64_t) +
+		sizeof(cch_backend_index_entry);
+
+	mid_level_size = index->levels_desc[index->mid_level].size *
+		sizeof(uint64_t) +
+		sizeof(cch_backend_index_entry);
+
+	good_i = -1;
+	good_reminder = 1024;
+
+	for (i = 0; i < ARRAY_SIZE(potential_cluster_size); i++) {
+		if (potential_cluster_size[i] < lowest_level_size)
+			continue;
+
+		if (potential_cluster_size[i] < mid_level_size)
+			continue;
+
+		if (potential_cluster_size[i] % lowest_level_size
+		    < good_reminder) {
+			good_i = i;
+			good_reminder = potential_cluster_size[i] %
+				lowest_level_size;
+		}
+	}
+
+	if (good_i == -1) {
+		PRINT_ERROR("couldn't find apropriate cluster size");
+		result = -ENOENT;
+	} else {
+		result = 0;
+		*cluster_size = potential_cluster_size[i];
+	}
+
+	TRACE_EXIT_RES(result);
+	return result;
+}
 
 int cch_index_create(
 	int levels,
@@ -208,12 +262,33 @@ int cch_index_create(
 	PRINT_INFO("cch_index_mid_level object size %d",
 		   kmem_cache_size(new_index->mid_level_kmem));
 
+	if (!cch_index_backend_cluster_calculate_size(new_index,
+		&new_index->backend_cluster_size)) {
+		result = -ENOMEM; // should we handle errors here?
+		goto out_free_mid_level_kmem;
+	};
+
+	snprintf(slab_name_buf, CACHE_NAME_BUF_SIZE,
+		 "cch_index_backend_cluster_%d", index_seq_n);
+	new_index->backend_cluster_kmem = kmem_cache_create(slab_name_buf,
+		new_index->backend_cluster_size + sizeof(cch_backend_cluster),
+		1024, 0, NULL);
+	if (!new->index->backend_cluster_kmem) {
+		result = -ENOMEM;
+		goto out_free_mid_level_kmem;
+	}
+
+	PRINT_INFO("%s with size %d", slab_name_buf,
+		   new_index->backend_cluster_size);
+
 	*out = new_index;
 
 out:
 	TRACE_EXIT_RES(result);
 	return result;
 
+out_free_mid_level_kmem:
+	kmem_cache_destroy(new_index->mid_level_kmem);
 out_free_low_level_kmem:
 	kmem_cache_destroy(new_index->lowest_level_kmem);
 out_free_descriptions:
@@ -374,7 +449,7 @@ void cch_index_destroy_entry(
  * Remove record from given entry at given offset,
  * decreasing reference count and, possibly, freeing all
  * unused index entries on this path.
- * 
+ *
  * Supposed to be called under cch_index_value_mutex.
  */
 void __cch_index_entry_remove_value(
@@ -448,7 +523,6 @@ int cch_index_create_lowest_entry(
 	int result = 0;
 	unsigned long flags;
 #ifdef CCH_INDEX_DEBUG
-
 	int i = 0;
 #endif
 
@@ -477,7 +551,7 @@ int cch_index_create_lowest_entry(
 	for (i = 0; i < cch_index_entry_size(index, *new_entry); i++)
 		sBUG_ON((*new_entry)->v[i].entry != NULL);
 	(*new_entry)->magic = CCH_INDEX_ENTRY_MAGIC;
-#endif	
+#endif
 
 	/* memory accounting */
 	index->on_new_entry_alloc_fn(index, index->lowest_level_entry_size,
@@ -648,7 +722,7 @@ out:
 /**
  * Try to walk index using @arg key, returning lowest level entry,
  * if it's found, -ENOENT if not
- * 
+ *
  * Should be called under cch_index_value_mutex.
  *
  * @arg key
@@ -861,7 +935,7 @@ void __cch_index_climb_to_first_capable_parent(
 	while (!cch_index_entry_is_root(parent_entry)) {
 		parent_entry_size = cch_index_entry_size(index, parent_entry);
 		result = 0;
-		
+
 		/* i now holds this_entry offset in parent_entry */
 
 		this_entry_level--;
@@ -940,7 +1014,7 @@ int __cch_index_entry_create_next_sibling(
 		this_entry = parent_entry->v[sibling_offset].entry;
 		this_entry_level++;
 
-		PRINT_INFO("this level is %d", this_entry_level);
+		TRACE(TRACE_DEBUG, "this level is %d", this_entry_level);
 		if (this_entry == NULL) {
 			result = cch_index_entry_create(
 				index, parent_entry, &this_entry,
@@ -1115,7 +1189,7 @@ int cch_index_insert_direct(
 #endif
 
 	mutex_lock(&index->cch_index_value_mutex);
-	
+
 	right_entry = entry;
 	lowest_entry_size = cch_index_entry_size(index, entry);
 
@@ -1243,7 +1317,7 @@ int cch_index_find_direct(
 	/* now, find */
 
 	*out_value = right_entry->v[offset].value;
-	
+
 	if (*out_value) {
 		cch_index_value_lock(*out_value);
 
@@ -1351,7 +1425,7 @@ int cch_index_find(struct cch_index *index, uint64_t key,
 			*index_entry = current_entry;
 		if (value_offset)
 			*value_offset = lowest_offset;
-		
+
 		PRINT_INFO("found 0x%lx", (long int) *out_value);
 
 		cch_index_value_lock(*out_value);
@@ -1389,7 +1463,7 @@ int cch_index_insert(struct cch_index *index,
 	TRACE_ENTRY();
 	sBUG_ON(index == NULL);
 
-	mutex_lock(&index->cch_index_value_mutex);	
+	mutex_lock(&index->cch_index_value_mutex);
 
 #ifdef CCH_INDEX_DEBUG
 	PRINT_INFO("key is 0x%.8llx", key);
@@ -1423,8 +1497,8 @@ int cch_index_insert(struct cch_index *index,
 	cch_index_entry_lru_update(index, current_entry);
 
 out_unlock:
-	mutex_unlock(&index->cch_index_value_mutex);	
-	
+	mutex_unlock(&index->cch_index_value_mutex);
+
 	TRACE_EXIT_RES(result);
 	return result;
 }
@@ -1457,7 +1531,7 @@ int cch_index_remove(struct cch_index *index, uint64_t key)
 
 out_unlock:
 	mutex_unlock(&index->cch_index_value_mutex);
-	
+
 	TRACE_EXIT_RES(result);
 	return result;
 }
@@ -1497,3 +1571,191 @@ int cch_index_shrink(struct cch_index_entry *index, int max_mem_kb)
 }
 EXPORT_SYMBOL(cch_index_shrink);
 
+
+int cch_index_backend_cluster_alloc(struct cch_index *index,
+	uint64_t kind,
+	struct cch_backend_cluster **new_cluster)
+{
+	int result = 0;
+	struct cch_backend_cluster *cluster;
+
+	TRACE_ENTRY();
+
+	cluster = kmem_cache_zalloc(index->backend_cluster_kmem, GFP_KERNEL);
+	if (!cluster) {
+		result = -ENOMEM;
+		goto out;
+	} else
+		*new_cluster = cluster;
+
+	(*new_cluster)->signature = kind;
+
+	/* entries are already zero */
+out:
+	TRACE_EXIT_RES(result);
+	return result;
+}
+
+int cch_index_backend_cluster_fill_start(
+	struct cch_index *index,
+	struct cch_backend_cluster *new_cluster)
+{
+	int result = 0;
+
+	TRACE_ENTRY();
+
+	/* zero any current crc32 */
+	memset(cluster->data[index->backend_cluster_size - 4], 0, 4);
+
+	TRACE_EXIT_RES(result);
+	return result;
+}
+
+/* let's enumerate entries hold by ordinal number.
+ * User of this function should not put entries
+ * of not the same type as the previous entries were
+ * or else there would be a data corruption.
+ */
+int cch_index_backend_cluster_fill_put(
+	struct cch_index *index,
+	struct cch_backend_cluster *cluster,
+	struct cch_index_entry *entry,
+	int *next /* how many records could be fit */)
+{
+	int result = 0;
+	int cch_backend_index_entry *backend_entry;
+	int entry_size = 0;
+
+	TRACE_ENTRY();
+
+	entry_size = cch_index_entry_size(entry);
+	backend_entry = (struct cch_backend_index_entry *)
+		cluster->data[entry_size * (*next)];
+
+	backend_entry->start_offs_key = 0;
+	backend_entry->len = entry_size;
+
+	memcpy(backend_entry->v[0], entry->v[0], entry_size * sizeof(uint64_t));
+
+	cluster->num_entries++;
+	*next = *next + 1;
+
+	TRACE_EXIT_RES(result);
+	return result;
+}
+
+int cch_index_backend_cluster_fill_finish(
+	struct cch_index *index,
+	struct cch_backend_cluster *cluster)
+{
+	int result = 0;
+	uint32 crc;
+
+	TRACE_ENTRY();
+
+	crc = crc32(0, cluster, index->backend_cluster_size - 4);
+	memcpy(&cluster->data[index->backend_cluster_size - 4], &crc, 4);
+
+	TRACE_EXIT_RES(result);
+	return result;
+}
+
+int cch_index_backend_cluster_parse_start(
+	struct cch_index *index,
+	struct cch_backend_cluster *cluster)
+{
+	int result = 0;
+	uint32 crc_computed, crc_read;
+
+	TRACE_ENTRY();
+
+	crc_computed = crc32(0, cluster, index->backend_cluster_size - 4);
+	memcpy(&crc_read, &cluster->data[index->backend_cluster_size - 4], 4);
+
+	if ((crc_computed != crc_read) ||
+	    (cch_backend_cluster_entry_size(index, cluster) == -1)) {
+		PRINT_ERROR("corrupted cluster %p", cluster);
+		result = -EIO;
+		goto out;
+	}
+
+	PRINT_INFO("%d records of size %d in cluster %p",
+		   cluster->num_entries,
+		   cluster,
+		   cch_backend_cluster_entry_size(index, cluster));
+
+out:
+	TRACE_EXIT_RES(result);
+	return result;
+}
+
+int cch_index_backend_cluster_parse_get(
+	struct cch_index *index,
+	struct cch_backend_cluster *cluster,
+	struct cch_index_entry *new_entry,
+	int *next)
+{
+	int result = 0;
+	struct cch_backend_index_entry *backend_entry;
+	struct cch_index_entry *entry;
+	int entry_size = 0;
+
+	TRACE_ENTRY();
+
+	entry_size = cch_backend_cluster_entry_size(index, cluster);
+	backend_entry = (struct cch_backend_index_entry *)
+		cluster->data[entry_size * (*next)];
+
+	if (cch_backend_cluster_is_mid(cluster)) {
+		result = cch_index_create_mid_entry(index,
+			/* parent */,
+			&entry,
+			/* offset */
+			);
+		if (!result)
+			goto out;
+
+		/* hardcheck for operation sanity */
+		sBUG_ON(cch_index_entry_size(index, entry) !=
+			backend_entry->len);
+
+		memcpy(&entry->v[0].value, &backend_entry, backend_entry->len);
+	} else if (cch_backend_cluster_is_lowest(cluster)) {
+		result = cch_index_create_lowest_entry(index,
+			/* parent */,
+			&entry,
+			/* offset */
+			);
+		if (!result)
+			goto out;
+
+		sBUG_ON(cch_index_entry_size(index, entry) !=
+			backend_entry->len);
+
+		memcpy(&entry->v[0].value, &backend_entry, backend_entry->len);
+	} else if (cch_backend_cluster_is_root(cluster)) {
+		/* a very special case, actually */
+
+		/* it's time to create an index or something */
+	}
+
+	*next = *next + 1;
+
+out:
+	TRACE_EXIT_RES(result);
+	return result;
+}
+
+int cch_index_backend_cluster_parse_finish(
+	struct cch_index *index,
+	struct cch_backend_cluster *cluster)
+{
+	int result = 0;
+
+	TRACE_ENTRY();
+
+	// probably, no-op
+
+	TRACE_EXIT_RES(result);
+	return result;
+}
